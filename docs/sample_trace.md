@@ -1,5 +1,3 @@
-# docs/sample_trace.md
-
 # Sample Runtime Trace
 
 This document shows a simplified execution trace for the travel planning Agent Runtime demo.
