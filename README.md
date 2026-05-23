@@ -252,14 +252,6 @@ The demo does not include vLLM because the focus here is runtime structure, not 
 
 ---
 
-## How to explain this in an interview
-
-You can describe the project like this:
-
-> I extracted the core runtime logic of a multi-turn travel planning agent into a minimal open-source demo. The focus is not travel inventory or UI, but state consistency, partial replanning, deterministic validation, and traceable execution. User changes are converted into Pydantic StatePatch objects, merged by a reducer, validated by rule-based checks, and exposed through a FastAPI endpoint. Redis and vLLM are not required for the demo, but the integration points are clearly defined for production state persistence and model-serving deployment.
-
----
-
 ## What this demo intentionally does not include
 
 - real flight or hotel APIs
