@@ -96,6 +96,20 @@ class TravelAgentRuntime:
             updates["preferences"] = preference_updates
             affected_fields.append("preferences")
 
+        confirm_words = ["confirm", "looks good", "sounds good", "ok",
+                         "okay", "perfect", "great", "yes", "correct"]
+        is_confirm = any(w in text for w in confirm_words)
+        if not updates and is_confirm:
+            return (
+                "confirm_plan",
+                StatePatch(
+                    updates={},
+                    reason="user_confirmed_current_plan",
+                    affected_fields=[],
+                    trigger_replan=False,
+                ),
+            )
+
         if not updates:
             return (
                 "ask_clarification",

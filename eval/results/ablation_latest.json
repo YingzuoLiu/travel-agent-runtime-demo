@@ -1,0 +1,302 @@
+[
+  {
+    "scenario_name": "happy_path_5turn",
+    "config_name": "full_runtime",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 1,
+    "replan_count": 5,
+    "recovery_success": true,
+    "validation_fail_count": 3,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "needs_repair",
+      "planned",
+      "needs_repair",
+      "blocked",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "happy_path_5turn",
+    "config_name": "no_validator",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "happy_path_5turn",
+    "config_name": "no_retry",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 3,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 3,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "blocked",
+      "planned",
+      "blocked",
+      "blocked",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "happy_path_5turn",
+    "config_name": "no_validator_no_retry",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "budget_conflict_recovery",
+    "config_name": "full_runtime",
+    "task_completed": false,
+    "final_stage": "blocked",
+    "blocker_count": 1,
+    "replan_count": 4,
+    "recovery_success": false,
+    "validation_fail_count": 3,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "needs_repair",
+      "needs_repair",
+      "blocked"
+    ]
+  },
+  {
+    "scenario_name": "budget_conflict_recovery",
+    "config_name": "no_validator",
+    "task_completed": false,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 4,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "budget_conflict_recovery",
+    "config_name": "no_retry",
+    "task_completed": false,
+    "final_stage": "blocked",
+    "blocker_count": 3,
+    "replan_count": 4,
+    "recovery_success": false,
+    "validation_fail_count": 3,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "blocked",
+      "blocked",
+      "blocked"
+    ]
+  },
+  {
+    "scenario_name": "budget_conflict_recovery",
+    "config_name": "no_validator_no_retry",
+    "task_completed": false,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 4,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "conflicting_preferences_stall",
+    "config_name": "full_runtime",
+    "task_completed": false,
+    "final_stage": "blocked",
+    "blocker_count": 3,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 5,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "needs_repair",
+      "needs_repair",
+      "blocked",
+      "blocked",
+      "blocked"
+    ]
+  },
+  {
+    "scenario_name": "conflicting_preferences_stall",
+    "config_name": "no_validator",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "conflicting_preferences_stall",
+    "config_name": "no_retry",
+    "task_completed": false,
+    "final_stage": "blocked",
+    "blocker_count": 5,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 5,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "blocked",
+      "blocked",
+      "blocked",
+      "blocked",
+      "blocked"
+    ]
+  },
+  {
+    "scenario_name": "conflicting_preferences_stall",
+    "config_name": "no_validator_no_retry",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 5,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 5,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "memory_drift_8turn",
+    "config_name": "full_runtime",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 7,
+    "recovery_success": true,
+    "validation_fail_count": 1,
+    "total_turns": 8,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "needs_repair",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "memory_drift_8turn",
+    "config_name": "no_validator",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 7,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 8,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "memory_drift_8turn",
+    "config_name": "no_retry",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 1,
+    "replan_count": 7,
+    "recovery_success": false,
+    "validation_fail_count": 1,
+    "total_turns": 8,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "blocked",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  },
+  {
+    "scenario_name": "memory_drift_8turn",
+    "config_name": "no_validator_no_retry",
+    "task_completed": true,
+    "final_stage": "planned",
+    "blocker_count": 0,
+    "replan_count": 7,
+    "recovery_success": false,
+    "validation_fail_count": 0,
+    "total_turns": 8,
+    "turn_outcomes": [
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned",
+      "planned"
+    ]
+  }
+]
