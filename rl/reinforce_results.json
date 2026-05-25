@@ -1,0 +1,102 @@
+[
+  {
+    "epoch": 1,
+    "avg_reward": -0.913,
+    "accuracy": 4.3
+  },
+  {
+    "epoch": 2,
+    "avg_reward": -0.787,
+    "accuracy": 26.1
+  },
+  {
+    "epoch": 3,
+    "avg_reward": -0.874,
+    "accuracy": 8.7
+  },
+  {
+    "epoch": 4,
+    "avg_reward": -0.896,
+    "accuracy": 4.3
+  },
+  {
+    "epoch": 5,
+    "avg_reward": -0.809,
+    "accuracy": 21.7
+  },
+  {
+    "epoch": 6,
+    "avg_reward": -0.913,
+    "accuracy": 4.3
+  },
+  {
+    "epoch": 7,
+    "avg_reward": -0.852,
+    "accuracy": 13.0
+  },
+  {
+    "epoch": 8,
+    "avg_reward": -0.809,
+    "accuracy": 21.7
+  },
+  {
+    "epoch": 9,
+    "avg_reward": -0.83,
+    "accuracy": 17.4
+  },
+  {
+    "epoch": 10,
+    "avg_reward": -0.83,
+    "accuracy": 17.4
+  },
+  {
+    "epoch": 11,
+    "avg_reward": -0.887,
+    "accuracy": 13.0
+  },
+  {
+    "epoch": 12,
+    "avg_reward": -0.917,
+    "accuracy": 0.0
+  },
+  {
+    "epoch": 13,
+    "avg_reward": -0.874,
+    "accuracy": 8.7
+  },
+  {
+    "epoch": 14,
+    "avg_reward": -0.83,
+    "accuracy": 17.4
+  },
+  {
+    "epoch": 15,
+    "avg_reward": -0.874,
+    "accuracy": 8.7
+  },
+  {
+    "epoch": 16,
+    "avg_reward": -0.848,
+    "accuracy": 17.4
+  },
+  {
+    "epoch": 17,
+    "avg_reward": -0.765,
+    "accuracy": 30.4
+  },
+  {
+    "epoch": 18,
+    "avg_reward": -0.852,
+    "accuracy": 13.0
+  },
+  {
+    "epoch": 19,
+    "avg_reward": -0.83,
+    "accuracy": 17.4
+  },
+  {
+    "epoch": 20,
+    "avg_reward": -0.852,
+    "accuracy": 13.0
+  }
+]

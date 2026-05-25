@@ -1,0 +1,140 @@
+[
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\n\nNew user message: I want a 5-day Tokyo trip under 7000 SGD.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -1.1,
+    "scenario": "happy_path_5turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 5-day Tokyo trip under 7000 SGD.\nNew user message: Make it a relaxed style.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "travel_style",
+    "reward": 1.0,
+    "scenario": "happy_path_5turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 5-day Tokyo trip under 7000 SGD.\nTurn 2: Make it a relaxed style.\nNew user message: I prefer to avoid red-eye flights.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "avoid_redeye",
+    "reward": -1.1,
+    "scenario": "happy_path_5turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 5-day Tokyo trip under 7000 SGD.\nTurn 2: Make it a relaxed style.\nTurn 3: I prefer to avoid red-eye flights.\nNew user message: I want a hotel near subway.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "hotel_preference",
+    "reward": -0.8,
+    "scenario": "happy_path_5turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 5-day Tokyo trip under 7000 SGD.\nTurn 2: Make it a relaxed style.\nTurn 3: I prefer to avoid red-eye flights.\nTurn 4: I want a hotel near subway.\nNew user message: Change the budget to 9000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": 1.0,
+    "scenario": "happy_path_5turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\n\nNew user message: I want a 7-day Tokyo trip under 15000 SGD.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": 1.0,
+    "scenario": "budget_conflict_recovery"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 7-day Tokyo trip under 15000 SGD.\nNew user message: Avoid red-eye. Hotel near subway.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "avoid_redeye",
+    "reward": 1.0,
+    "scenario": "budget_conflict_recovery"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 7-day Tokyo trip under 15000 SGD.\nTurn 2: Avoid red-eye. Hotel near subway.\nNew user message: Actually cut budget to 4000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -1.1,
+    "scenario": "budget_conflict_recovery"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 7-day Tokyo trip under 15000 SGD.\nTurn 2: Avoid red-eye. Hotel near subway.\nTurn 3: Actually cut budget to 4000.\nNew user message: OK raise budget to 6000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -1.1,
+    "scenario": "budget_conflict_recovery"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 7-day Tokyo trip under 15000 SGD.\nTurn 2: Avoid red-eye. Hotel near subway.\nTurn 3: Actually cut budget to 4000.\nTurn 4: OK raise budget to 6000.\nNew user message: Keep everything else the same.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "confirm_plan",
+    "reward": -0.8,
+    "scenario": "budget_conflict_recovery"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\n\nNew user message: I want a 10-day Tokyo trip under 5000 SGD.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -1.1,
+    "scenario": "conflicting_preferences_stall"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 10-day Tokyo trip under 5000 SGD.\nNew user message: Avoid red-eye. Hotel near subway.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "avoid_redeye",
+    "reward": -1.1,
+    "scenario": "conflicting_preferences_stall"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 10-day Tokyo trip under 5000 SGD.\nTurn 2: Avoid red-eye. Hotel near subway.\nNew user message: Keep budget at 5000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -0.8,
+    "scenario": "conflicting_preferences_stall"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 10-day Tokyo trip under 5000 SGD.\nTurn 2: Avoid red-eye. Hotel near subway.\nTurn 3: Keep budget at 5000.\nNew user message: I insist the budget stays at 5000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -0.8,
+    "scenario": "conflicting_preferences_stall"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: I want a 10-day Tokyo trip under 5000 SGD.\nTurn 2: Avoid red-eye. Hotel near subway.\nTurn 3: Keep budget at 5000.\nTurn 4: I insist the budget stays at 5000.\nNew user message: Fine, raise budget to 8000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": -0.8,
+    "scenario": "conflicting_preferences_stall"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\n\nNew user message: Plan a 6-day Tokyo trip, budget 10000 SGD.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nNew user message: I want a relaxed travel style.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "travel_style",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nTurn 2: I want a relaxed travel style.\nNew user message: Avoid red-eye flights.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "avoid_redeye",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nTurn 2: I want a relaxed travel style.\nTurn 3: Avoid red-eye flights.\nNew user message: Hotel near subway please.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "hotel_preference",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nTurn 2: I want a relaxed travel style.\nTurn 3: Avoid red-eye flights.\nTurn 4: Hotel near subway please.\nNew user message: Change the trip to 8 days.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_days",
+    "reward": -1.1,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nTurn 2: I want a relaxed travel style.\nTurn 3: Avoid red-eye flights.\nTurn 4: Hotel near subway please.\nTurn 5: Change the trip to 8 days.\nNew user message: Raise budget to 12000.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "update_budget",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nTurn 2: I want a relaxed travel style.\nTurn 3: Avoid red-eye flights.\nTurn 4: Hotel near subway please.\nTurn 5: Change the trip to 8 days.\nTurn 6: Raise budget to 12000.\nNew user message: Keep the relaxed style and no red-eye.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "travel_style",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  },
+  {
+    "prompt": "You are an intent classifier for a travel planning agent.\nConversation so far:\nTurn 1: Plan a 6-day Tokyo trip, budget 10000 SGD.\nTurn 2: I want a relaxed travel style.\nTurn 3: Avoid red-eye flights.\nTurn 4: Hotel near subway please.\nTurn 5: Change the trip to 8 days.\nTurn 6: Raise budget to 12000.\nTurn 7: Keep the relaxed style and no red-eye.\nNew user message: Confirm everything looks good.\nClassify the intent. Choose exactly one from: update_budget, update_days, avoid_redeye, hotel_preference, travel_style, confirm_plan, ask_clarification\nIntent:",
+    "label": "confirm_plan",
+    "reward": 1.0,
+    "scenario": "memory_drift_8turn"
+  }
+]
