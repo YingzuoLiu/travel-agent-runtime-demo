@@ -113,17 +113,5 @@ which would be the next feature to implement.
 
 ---
 
-## Interview summary
 
-> I built a deterministic agent runtime for multi-turn travel
-> planning and designed an ablation eval harness to measure how
-> validator, retry, and intent detection components affect task
-> reliability. Running four scenarios across four configurations,
-> I found that removing the validator raised apparent completion
-> rate from 50% to 75% — but the extra completions were plans
-> that violated budget constraints. I also caught and fixed a
-> missing confirm intent that caused all 8-turn sessions to fail
-> at the final turn. The key insight is that completion rate alone
-> is not a sufficient metric for agent correctness; constraint
-> satisfaction must be measured separately.
 
