@@ -207,9 +207,9 @@ The validator returns structured validation errors. If validation keeps failing 
 
 ### 4. Optional Geography Grounding
 
-The validator also supports an optional geography grounding mode.
+The validator can consume optional geography evidence, such as geocoding results, to check whether a destination can be grounded to real-world coordinates.
 
-When enabled, a Nominatim-compatible geocoding tool can be injected into `TravelValidator` to verify whether a destination can be resolved into real-world coordinates.
+In this minimal demo, the geocoding dependency is injected for testing and extension purposes. In a cleaner production runtime, the tool execution would happen in the runtime or executor layer, while the validator would only consume the returned structured evidence.
 
 This keeps external grounding separate from the default offline runtime path.
 
@@ -232,7 +232,6 @@ This follows the same design principle as the rest of the project:
 ```text
 The LLM should not be the only component deciding whether a travel plan is valid.
 ```
-
 ---
 
 ### 5. Partial Replanning
