@@ -1,10 +1,22 @@
 from __future__ import annotations
 
-from typing import List
+import math
+from typing import List, Protocol
 
 from pydantic import BaseModel
 
 from .state import AgentState
+from .tools.geocode_tool import GeoPoint
+
+
+class GeocodeToolProtocol(Protocol):
+    def search(
+        self,
+        query: str,
+        country: str | None = None,
+        limit: int = 3,
+    ) -> List[GeoPoint]:
+        ...
 
 
 class ValidationResult(BaseModel):
@@ -18,6 +30,16 @@ class TravelValidator:
 
     The goal is to keep hard business constraints outside the LLM prompt.
     """
+
+    def __init__(
+        self,
+        geocode_tool: GeocodeToolProtocol | None = None,
+        enable_geography_validation: bool = False,
+        default_country: str | None = None,
+    ):
+        self.geocode_tool = geocode_tool
+        self.enable_geography_validation = enable_geography_validation
+        self.default_country = default_country
 
     def validate_required_fields(self, state: AgentState) -> List[str]:
         errors: List[str] = []
@@ -72,6 +94,54 @@ class TravelValidator:
 
         return errors
 
+    def validate_destination_exists(self, state: AgentState) -> List[str]:
+        errors: List[str] = []
+
+        if not self.enable_geography_validation:
+            return errors
+
+        if self.geocode_tool is None:
+            return errors
+
+        if not state.destination:
+            return errors
+
+        try:
+            results = self.geocode_tool.search(
+                state.destination,
+                country=self.default_country,
+                limit=3,
+            )
+        except Exception as exc:
+            errors.append(
+                f"Geography validation failed: geocode tool error={type(exc).__name__}"
+            )
+            return errors
+
+        if not results:
+            errors.append(f"Destination could not be geocoded: {state.destination}")
+
+        return errors
+
+    @staticmethod
+    def haversine_km(point_a: GeoPoint, point_b: GeoPoint) -> float:
+        radius_km = 6371.0
+
+        lat1 = math.radians(point_a.lat)
+        lon1 = math.radians(point_a.lon)
+        lat2 = math.radians(point_b.lat)
+        lon2 = math.radians(point_b.lon)
+
+        delta_lat = lat2 - lat1
+        delta_lon = lon2 - lon1
+
+        a = (
+            math.sin(delta_lat / 2) ** 2
+            + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+        )
+
+        return 2 * radius_km * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
     def validate(self, state: AgentState) -> ValidationResult:
         errors: List[str] = []
 
@@ -79,5 +149,6 @@ class TravelValidator:
         errors.extend(self.validate_budget(state))
         errors.extend(self.validate_no_red_eye(state))
         errors.extend(self.validate_itinerary_days(state))
+        errors.extend(self.validate_destination_exists(state))
 
         return ValidationResult(passed=len(errors) == 0, errors=errors)
