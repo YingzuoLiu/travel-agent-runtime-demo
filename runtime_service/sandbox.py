@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -29,7 +29,7 @@ class ToolPolicy(BaseModel):
     max_output_bytes: int = Field(default=16_384, ge=256, le=1_048_576)
     max_memory_mb: int = Field(default=128, ge=32, le=1024)
     max_cpu_seconds: int = Field(default=2, ge=1, le=30)
-    allow_network: bool = False
+    network_mode: Literal["host"] = "host"
 
 
 class ToolExecutionRequest(BaseModel):
@@ -64,10 +64,18 @@ class RouteCostInput(BaseModel):
     budget: int = Field(gt=0, le=10_000_000)
 
 
+class TripOptionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    cost: float = Field(ge=0, le=10_000_000)
+    duration_hours: float = Field(gt=0, le=10_000)
+
+
 class RankOptionsInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    options: list[dict[str, Any]] = Field(min_length=1, max_length=50)
+    options: list[TripOptionInput] = Field(min_length=1, max_length=50)
     cost_weight: float = Field(default=0.6, ge=0, le=1)
     duration_weight: float = Field(default=0.4, ge=0, le=1)
 
@@ -128,10 +136,11 @@ def build_default_tool_registry() -> ToolRegistry:
 class ToolSandbox:
     """Execute only server-registered tools in a restricted subprocess.
 
-    This is intentionally not an arbitrary-code sandbox. The command, worker
-    script, tool names, input schemas, environment and resource policy are all
-    controlled by the service. Kernel-grade filesystem and network isolation
-    still require a container, Kubernetes Job, gVisor or microVM backend.
+    This is intentionally not an arbitrary-code sandbox. The service controls
+    the executable, worker script, tool allowlist, schemas, environment and
+    resource policy. The process backend does not isolate host networking or
+    the full host filesystem; those require a container, gVisor or microVM
+    execution backend.
     """
 
     def __init__(self, registry: ToolRegistry) -> None:
@@ -163,8 +172,7 @@ class ToolSandbox:
             )
 
         command = [sys.executable, str(self._worker_path), tool_name]
-        environment = self._sanitized_environment()
-        preexec_fn = self._build_resource_limiter(spec.policy)
+        environment = self._sanitized_environment(spec.policy)
 
         with tempfile.TemporaryDirectory(prefix="travel-agent-sandbox-") as workspace:
             process = subprocess.Popen(
@@ -176,7 +184,6 @@ class ToolSandbox:
                 stderr=subprocess.PIPE,
                 text=False,
                 start_new_session=os.name == "posix",
-                preexec_fn=preexec_fn,
             )
             payload = json.dumps(validated.model_dump(mode="json")).encode("utf-8")
             try:
@@ -254,34 +261,20 @@ class ToolSandbox:
         )
 
     @staticmethod
-    def _sanitized_environment() -> dict[str, str]:
+    def _sanitized_environment(policy: ToolPolicy) -> dict[str, str]:
         environment = {
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUNBUFFERED": "1",
             "PATH": os.environ.get("PATH", ""),
+            "SANDBOX_MAX_CPU_SECONDS": str(policy.max_cpu_seconds),
+            "SANDBOX_MAX_MEMORY_MB": str(policy.max_memory_mb),
+            "SANDBOX_NETWORK_MODE": policy.network_mode,
         }
         for key in ("LANG", "LC_ALL", "TZ", "SYSTEMROOT", "WINDIR"):
             value = os.environ.get(key)
             if value:
                 environment[key] = value
         return environment
-
-    @staticmethod
-    def _build_resource_limiter(policy: ToolPolicy):
-        if os.name != "posix":
-            return None
-
-        def apply_limits() -> None:
-            import resource
-
-            memory_bytes = policy.max_memory_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_CPU, (policy.max_cpu_seconds, policy.max_cpu_seconds))
-            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-            resource.setrlimit(resource.RLIMIT_NOFILE, (32, 32))
-            if hasattr(resource, "RLIMIT_NPROC"):
-                resource.setrlimit(resource.RLIMIT_NPROC, (1, 1))
-
-        return apply_limits
 
     @staticmethod
     def _terminate_process(process: subprocess.Popen[bytes]) -> None:
