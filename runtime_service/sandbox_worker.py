@@ -7,6 +7,20 @@ import time
 from typing import Any
 
 
+def apply_resource_limits() -> None:
+    if os.name != "posix":
+        return
+
+    import resource
+
+    cpu_seconds = int(os.environ["SANDBOX_MAX_CPU_SECONDS"])
+    memory_bytes = int(os.environ["SANDBOX_MAX_MEMORY_MB"]) * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+    resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (32, 32))
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
 def route_cost_summary(payload: dict[str, Any]) -> dict[str, Any]:
     total = int(payload["transport_cost"]) + int(payload["hotel_cost"]) + int(
         payload["activity_cost"]
@@ -66,6 +80,8 @@ TOOLS = {
 
 
 def main() -> int:
+    apply_resource_limits()
+
     if len(sys.argv) != 2:
         print("exactly one tool name is required", file=sys.stderr)
         return 2
