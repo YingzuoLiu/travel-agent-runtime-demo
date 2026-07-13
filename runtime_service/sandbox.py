@@ -27,7 +27,7 @@ class ToolExecutionStatus(str, Enum):
 class ToolPolicy(BaseModel):
     timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     max_output_bytes: int = Field(default=16_384, ge=256, le=1_048_576)
-    max_memory_mb: int = Field(default=128, ge=32, le=1024)
+    max_memory_mb: int = Field(default=256, ge=32, le=1024)
     max_cpu_seconds: int = Field(default=2, ge=1, le=30)
     network_mode: Literal["host"] = "host"
 
@@ -280,10 +280,13 @@ class ToolSandbox:
     def _terminate_process(process: subprocess.Popen[bytes]) -> None:
         if process.poll() is not None:
             return
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            return
 
     @staticmethod
     def _duration_ms(started: float) -> int:
