@@ -4,7 +4,7 @@ A runnable reference implementation of three related layers:
 
 1. an **application-level Agent Runtime** for structured multi-turn travel planning;
 2. a small **self-hosted cloud runtime** for durable run lifecycle management;
-3. a **policy-enforced registered-tool sandbox** using restricted subprocess workers.
+3. **policy-enforced registered-tool sandboxing** using restricted subprocess workers.
 
 The project is offline-first. It does not require an LLM key, Redis, PostgreSQL, or Kubernetes to demonstrate the runtime mechanics.
 
@@ -173,6 +173,8 @@ It protects the runtime from accidental or unauthorized tool selection, malforme
 
 The descriptor reports `network_mode: host` because the process backend does not claim to block outbound network access. It also does not create a private mount namespace, so it cannot safely run arbitrary user code or untrusted third-party MCP servers.
 
+The Docker image starts the service under `tini`, which runs as container PID 1, forwards signals, and reaps orphaned descendants. This prevents timed-out tools that spawn child processes from leaving unreaped zombies behind in long-running containers.
+
 That stronger boundary should use an ephemeral container, Kubernetes Job, gVisor sandbox, or microVM with:
 
 ```text
@@ -189,6 +191,12 @@ read-only root filesystem
 ```
 
 See [`docs/cloud-runtime.md`](docs/cloud-runtime.md) for the detailed execution and security model.
+
+## Agent integration boundary
+
+The sandbox is currently exposed as an independent control-plane API. `TravelAgentRuntime` does not yet invoke tools from an LLM or planner-driven tool loop.
+
+This keeps the current threat model narrow and testable: external clients may request only registered tools through the API. A later Agent tool-calling integration must add per-Agent tool permissions, prompt-injection defenses, approval policies for side effects, per-call idempotency, and trace linkage between planner decisions and sandbox executions.
 
 ## Cancellation semantics
 
@@ -215,7 +223,7 @@ The suite covers:
 - parent-secret environment scrubbing;
 - sandbox API execution and run-event linkage.
 
-GitHub Actions runs compile checks, Ruff, scoped mypy, and pytest on Python 3.11 and 3.12.
+GitHub Actions runs compile checks, Ruff, scoped mypy, and pytest on Python 3.11 and 3.12. A separate container smoke job builds the Docker image and verifies that `/usr/bin/tini` is the configured entrypoint.
 
 ## Deployment boundary
 
@@ -245,7 +253,8 @@ This is a cloud-runtime prototype, not a complete Agent Platform:
 - process sandbox does not isolate host networking or the full host filesystem;
 - POSIX resource limits are weaker on Windows;
 - no arbitrary user-code execution endpoint;
+- sandbox is not yet integrated into the Agent decision loop;
 - no OpenTelemetry backend or evaluation dashboard;
 - no real flight, hotel, payment, or booking API.
 
-> A self-hosted Agent Runtime prototype that combines structured planning, durable execution lifecycle, version pinning, checkpoint recovery, cancellation, event observability, idempotent submission, and policy-enforced registered-tool isolation.
+> A self-hosted Agent Runtime prototype that combines structured planning, durable execution lifecycle, version pinning, checkpoint recovery, cancellation, event observability, idempotent submission, and policy-enforced registered-tool sandboxing.
