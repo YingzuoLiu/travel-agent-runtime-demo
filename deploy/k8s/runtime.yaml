@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: travel-agent-runtime-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-agent-runtime
+spec:
+  # SQLite + an in-process queue intentionally run as one replica in this demo.
+  # Move runs/checkpoints to PostgreSQL and the queue to Redis/Pub/Sub before scaling out.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: travel-agent-runtime
+  template:
+    metadata:
+      labels:
+        app: travel-agent-runtime
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: runtime
+          image: your-registry/travel-agent-runtime:0.3.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: RUNTIME_DB_PATH
+              value: /app/runtime_data/runtime.db
+            - name: RUNTIME_WORKER_COUNT
+              value: "1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: runtime-data
+              mountPath: /app/runtime_data
+      volumes:
+        - name: runtime-data
+          persistentVolumeClaim:
+            claimName: travel-agent-runtime-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-agent-runtime
+spec:
+  selector:
+    app: travel-agent-runtime
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

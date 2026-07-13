@@ -1,0 +1,14 @@
+services:
+  runtime:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      RUNTIME_DB_PATH: /app/runtime_data/runtime.db
+      RUNTIME_WORKER_COUNT: "1"
+    volumes:
+      - runtime-data:/app/runtime_data
+    restart: unless-stopped
+
+volumes:
+  runtime-data:
