@@ -2,61 +2,64 @@
 
 A runnable reference implementation of two related layers:
 
-1. an **application-level agent runtime** for structured multi-turn travel planning;
+1. an **application-level Agent Runtime** for structured multi-turn travel planning;
 2. a small **self-hosted cloud runtime** for durable run lifecycle management.
 
-The project is intentionally offline-first. It does not require an LLM API key, Redis, PostgreSQL or a Kubernetes cluster to demonstrate the runtime mechanics.
+The project is offline-first: it does not require an LLM key, Redis, PostgreSQL, or Kubernetes to demonstrate the runtime mechanics.
 
-## What changed in v0.3
-
-The original agent already separated state, patching, validation and replanning from prompt text. Version `0.3.0` adds the outer execution-management layer:
-
-- asynchronous `POST /runs` API
-- durable `run_id` lifecycle
-- exact agent-version pinning
-- worker-based execution
-- SQLite-backed runs, events and thread checkpoints
-- restart recovery for queued/running work
-- cooperative cancellation
-- polling and Server-Sent Events trace APIs
-- Docker, Docker Compose and a single-replica Kubernetes manifest
-- CI on Python 3.11 and 3.12
+## Architecture
 
 ```text
 Client
   |
   v
 FastAPI control API
-  |  POST /runs
-  v
-RuntimeManager ---- AgentRegistry
-  |                    `- travel-agent:0.3.0
+  |- POST /agent/message   synchronous compatibility path
+  `- POST /runs            asynchronous runtime path
+          |
+          v
+RuntimeManager ---- AgentRegistry (agent_id + exact version)
   |
   +---- worker queue
   |
   +---- SQLiteRunStore
   |       |- runs
   |       |- run_events
-  |       `- thread_states
+  |       `- thread_states / checkpoints
   |
   v
 TravelAgentRuntime
-  |- intent detection
-  |- StatePatch + reducer
+  |- intent -> StatePatch -> reducer
   |- partial replan
   |- deterministic validator
   `- blocker propagation
 ```
 
-## Why this is a runtime, not only an API wrapper
+Both API paths read and write the same durable `thread_states` store. A thread created through `/agent/message` can therefore continue through `/runs`, and vice versa.
 
-A normal synchronous wrapper looks like:
+## What v0.3 demonstrates
+
+- asynchronous `POST /runs` API;
+- durable `run_id` lifecycle;
+- exact Agent-version pinning;
+- worker-based execution;
+- SQLite-backed runs, events, and thread checkpoints;
+- restart recovery for queued/running work;
+- cooperative cancellation with an atomic completion guard;
+- idempotent run submission through `client_request_id`;
+- polling and Server-Sent Events APIs;
+- Docker, Docker Compose, and a deliberately single-replica Kubernetes manifest;
+- CI with Ruff, mypy, and pytest on Python 3.11 and 3.12.
+
+## Why this is more than an API wrapper
+
+A synchronous wrapper is simply:
 
 ```text
 HTTP request -> agent.run() -> HTTP response
 ```
 
-The `/runs` path manages execution as a first-class resource:
+The `/runs` path treats execution as a first-class resource:
 
 ```text
 queued -> running -> completed
@@ -64,265 +67,123 @@ queued -> running -> completed
 queued/running    -> cancelled
 ```
 
-Each run stores:
-
-- `run_id` and `thread_id`
-- pinned `agent_id` and `agent_version`
-- input, output and validation errors
-- attempt and cancellation metadata
-- timestamps
-- the latest serialized `AgentState`
-- an append-only runtime event history
-
-This outer lifecycle is separate from the travel agent's internal planner/reducer/validator behavior.
+Each run stores its input/output, status, timestamps, attempt count, pinned Agent version, latest serialized state, cancellation metadata, and append-only event history.
 
 ## Application runtime
 
-The travel agent keeps important task state outside the prompt:
+The travel Agent keeps important state outside the prompt:
 
 ```text
 User message
-    |
-    v
-Intent detection
-    |
-    v
-StatePatch
-    |
-    v
-Reducer
-    |
-    v
-Partial replan
-    |
-    v
-Deterministic validator
-    |
-    v
-Blocker or final response
+  -> intent detection
+  -> StatePatch
+  -> reducer
+  -> partial replan
+  -> deterministic validator
+  -> blocker or final response
 ```
 
-Core behavior includes:
-
-- typed `AgentState` with Pydantic
-- explicit `StatePatch` transitions
-- reducer-based nested state updates
-- partial replanning after changed constraints
-- deterministic budget, itinerary and flight checks
-- optional geocoding-based grounding
-- retry metadata and visible blockers
-- application trace events
-
-The rule-based intent detector keeps the repository runnable without model credentials. It can later be replaced with an LLM or classifier that produces the same `StatePatch` schema.
-
-## Project structure
-
-```text
-travel-agent-runtime-demo/
-├── agent/                    # application-level travel runtime
-│   ├── state.py
-│   ├── reducer.py
-│   ├── runtime.py
-│   ├── validator.py
-│   └── tools/
-├── runtime_service/          # cloud runtime layer
-│   ├── models.py             # run/event API models and lifecycle
-│   ├── registry.py           # exact agent-version registry
-│   ├── store.py              # SQLite runs/events/checkpoints
-│   └── manager.py            # queue, worker, recovery, cancellation
-├── api/main.py               # synchronous and asynchronous FastAPI APIs
-├── deploy/k8s/runtime.yaml   # deliberately single-replica SQLite deployment
-├── docs/cloud-runtime.md
-├── tests/
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
-```
+Core components include typed `AgentState`, explicit patch transitions, nested-state reduction, deterministic constraint validation, partial replanning, blocker propagation, and application trace events.
 
 ## Quick start
-
-Install and test:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest -q
-```
-
-Start the API:
-
-```bash
 uvicorn api.main:app --reload
 ```
 
-Health endpoints:
-
-```bash
-curl http://127.0.0.1:8000/health
-curl http://127.0.0.1:8000/ready
-```
-
 ## Synchronous compatibility API
-
-The original endpoint remains available:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/agent/message \
   -H "Content-Type: application/json" \
   -d '{
-    "thread_id": "tokyo-trip-sync",
+    "thread_id": "tokyo-trip-001",
     "user_message": "I want a 5-day Tokyo trip under 9000 SGD."
   }'
 ```
 
-This endpoint executes in the request process and keeps its compatibility state in memory. Use `/runs` to exercise the durable runtime layer.
+This endpoint executes in the request process but persists its updated state to the same SQLite checkpoint store used by asynchronous runs.
 
 ## Durable run API
 
-List registered agent versions:
-
-```bash
-curl http://127.0.0.1:8000/agents
-```
-
-Create an asynchronous run:
+Create a run:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/runs \
   -H "Content-Type: application/json" \
   -d '{
     "thread_id": "tokyo-trip-001",
-    "user_message": "I want a 5-day Tokyo trip under 9000 SGD.",
+    "user_message": "Change the budget to 10000 and avoid red-eye flights.",
     "agent_id": "travel-agent",
-    "agent_version": "0.3.0"
+    "agent_version": "0.3.0",
+    "client_request_id": "request-20260713-001"
   }'
 ```
 
-The API returns `202 Accepted` with a stable `run_id`.
+Repeating the same request with the same `client_request_id` returns the existing run instead of creating a duplicate.
 
-Inspect the run:
+Inspect execution:
 
 ```bash
 curl http://127.0.0.1:8000/runs/<run_id>
-```
-
-Inspect append-only runtime events:
-
-```bash
 curl http://127.0.0.1:8000/runs/<run_id>/events
-```
-
-Stream events with SSE:
-
-```bash
 curl -N http://127.0.0.1:8000/runs/<run_id>/events/stream
-```
-
-Request cancellation:
-
-```bash
 curl -X POST http://127.0.0.1:8000/runs/<run_id>/cancel
 ```
 
-Continue the same thread in a new run:
+## Cancellation semantics
 
-```bash
-curl -X POST http://127.0.0.1:8000/runs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "thread_id": "tokyo-trip-001",
-    "user_message": "Change the budget to 10000 and avoid red-eye flights."
-  }'
-```
-
-The worker loads the latest persisted state for `tokyo-trip-001`, applies the new patch and saves a new checkpoint.
-
-## Runtime event example
-
-```text
-run.queued
-run.started
-checkpoint.loaded
-checkpoint.saved
-run.completed
-```
-
-Application events such as `intent_detected`, `state_patch_applied` and `validation_finished` remain inside `AgentState.execution_trace`. This intentionally separates:
-
-- infrastructure/run lifecycle events;
-- agent reasoning and state-transition events.
+Cancellation is cooperative: code already executing inside an Agent step is not forcibly interrupted. The store sets `cancel_requested` atomically, and completion uses a conditional update (`WHERE cancel_requested = 0`). A cancel arriving at the execution boundary therefore cannot be silently overwritten by a stale whole-row write.
 
 ## Restart recovery
 
-At startup, `RuntimeManager` scans durable records left in `queued` or `running` state.
+At startup, the manager scans durable records left in `queued` or `running`. A previously running task is moved back to `queued`, receives a `run.recovered` event, and executes again.
 
-A previously running task is moved back to `queued`, receives a `run.recovered` event and is executed again. This demonstrates recovery semantics, but side-effecting tools such as booking or payment APIs would additionally require idempotency keys.
+This is safe for the current deterministic demo. Real booking or payment tools would additionally require per-tool-call idempotency records.
 
-## Docker
+## Deployment boundary
 
-```bash
-docker compose up --build
-```
+SQLite and the in-process queue keep the project self-contained, but they are not a horizontally scalable architecture. The Kubernetes manifest therefore uses one replica and persistent storage.
 
-The named volume persists `runtime_data/runtime.db` across container restarts.
-
-The image:
-
-- uses a multi-stage build;
-- runs as a non-root user;
-- excludes `.env`, local databases and development artifacts;
-- exposes an HTTP health check without depending on `curl`.
-
-## Kubernetes
-
-A minimal manifest is provided:
-
-```bash
-kubectl apply -f deploy/k8s/runtime.yaml
-```
-
-It deliberately uses:
-
-- one replica;
-- a persistent volume;
-- `Recreate` deployment strategy;
-- readiness and liveness probes;
-- resource requests and limits;
-- a non-root security context.
-
-SQLite and an in-process queue are not a truthful horizontally scalable architecture. Before increasing replicas, replace them with PostgreSQL plus Redis, Pub/Sub or another distributed dispatch system.
-
-## Deliberate limitations
-
-This is a cloud-runtime prototype, not a complete enterprise agent platform:
-
-- SQLite instead of PostgreSQL
-- in-process queue instead of distributed workers
-- no worker lease or heartbeat
-- cancellation only at cooperative execution boundaries
-- no authentication, tenant isolation or quotas
-- no external secret manager integration
-- no tool-call idempotency ledger
-- no OpenTelemetry backend or evaluation dashboard
-- no real flight, hotel, payment or booking API
-
-## Production-oriented next steps
-
-A natural next version would add:
+Before increasing replicas, replace them with:
 
 ```text
 PostgreSQL runs/checkpoints/events
-+ Redis or Pub/Sub queue
++ Redis, Pub/Sub, or another distributed queue
 + worker lease and heartbeat
-+ idempotent tool-call records
++ idempotent tool-call ledger
 + OpenTelemetry traces and metrics
-+ authentication and tenant quotas
-+ run-level canary version routing
 ```
 
-See [`docs/cloud-runtime.md`](docs/cloud-runtime.md) for the execution model and design boundaries.
+## Tests
 
-## How to describe the project
+The suite covers:
 
-> A self-hosted Agent Runtime prototype that separates application-level planning, structured state updates and deterministic validation from cloud execution concerns such as run lifecycle, version pinning, durable checkpoints, worker dispatch, cancellation, restart recovery and event observability.
+- state patching and deterministic validation;
+- multi-turn checkpoint continuation;
+- state sharing between synchronous and asynchronous APIs;
+- cancellation before start and after an execution boundary;
+- restart recovery;
+- two-worker execution;
+- idempotent run submission;
+- persistent events and state across store instances.
+
+## Deliberate limitations
+
+This is a cloud-runtime prototype, not a complete Agent Platform:
+
+- SQLite instead of PostgreSQL;
+- local queue instead of distributed workers;
+- no worker lease or heartbeat;
+- no authentication, tenant isolation, or quotas;
+- no external secret manager integration;
+- no tool-call idempotency ledger yet;
+- no code/tool sandbox yet;
+- no OpenTelemetry backend or evaluation dashboard;
+- no real flight, hotel, payment, or booking API.
+
+> A self-hosted Agent Runtime prototype that separates application-level planning, structured state updates, and deterministic validation from cloud execution concerns such as run lifecycle, version pinning, durable checkpoints, worker dispatch, cancellation, restart recovery, idempotent submission, and event observability.
