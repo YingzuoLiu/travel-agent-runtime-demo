@@ -19,7 +19,12 @@ from runtime_service import (
     RunRecord,
     RuntimeManager,
     SQLiteRunStore,
+    ToolDescriptor,
+    ToolExecutionRequest,
+    ToolExecutionResult,
+    ToolSandbox,
     build_default_registry,
+    build_default_tool_registry,
 )
 
 
@@ -38,29 +43,42 @@ class AgentMessageResponse(BaseModel):
     validation_errors: list[str]
 
 
-def create_app(*, database_path: str | Path | None = None, worker_count: int | None = None) -> FastAPI:
-    resolved_database_path = Path(database_path or os.getenv("RUNTIME_DB_PATH", "runtime_data/runtime.db"))
+def create_app(
+    *,
+    database_path: str | Path | None = None,
+    worker_count: int | None = None,
+) -> FastAPI:
+    resolved_database_path = Path(
+        database_path or os.getenv("RUNTIME_DB_PATH", "runtime_data/runtime.db")
+    )
     resolved_worker_count = worker_count or int(os.getenv("RUNTIME_WORKER_COUNT", "1"))
     registry = build_default_registry()
+    tool_registry = build_default_tool_registry()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         store = SQLiteRunStore(resolved_database_path)
-        manager = RuntimeManager(store=store, registry=registry, worker_count=resolved_worker_count)
+        manager = RuntimeManager(
+            store=store,
+            registry=registry,
+            worker_count=resolved_worker_count,
+        )
         manager.start()
         app.state.run_store = store
         app.state.runtime_manager = manager
         app.state.agent_registry = registry
+        app.state.tool_registry = tool_registry
+        app.state.tool_sandbox = ToolSandbox(tool_registry)
         yield
         manager.stop()
 
     app = FastAPI(
         title="Travel Agent Runtime Demo",
         description=(
-            "A stateful travel agent plus a durable run API with version pinning, "
-            "worker execution, checkpoints, cancellation and event history."
+            "A stateful travel agent plus durable run lifecycle and policy-enforced "
+            "sandboxed tool execution."
         ),
-        version="0.3.0",
+        version="0.4.0",
         lifespan=lifespan,
     )
 
@@ -80,12 +98,55 @@ def create_app(*, database_path: str | Path | None = None, worker_count: int | N
     def list_agents(request: Request) -> list[AgentDescriptor]:
         return request.app.state.agent_registry.list_agents()
 
+    @app.get("/tools", response_model=list[ToolDescriptor])
+    def list_tools(request: Request) -> list[ToolDescriptor]:
+        return request.app.state.tool_registry.list_tools()
+
+    @app.post("/tools/{tool_name}/execute", response_model=ToolExecutionResult)
+    def execute_tool(
+        tool_name: str,
+        payload: ToolExecutionRequest,
+        request: Request,
+    ) -> ToolExecutionResult:
+        store: SQLiteRunStore = request.app.state.run_store
+        if payload.run_id is not None:
+            if store.get_run(payload.run_id) is None:
+                raise HTTPException(status_code=404, detail="Run not found")
+            store.append_event(
+                payload.run_id,
+                "sandbox.execution_started",
+                {"tool_name": tool_name},
+            )
+
+        sandbox: ToolSandbox = request.app.state.tool_sandbox
+        result = sandbox.execute(tool_name, payload.arguments)
+
+        if payload.run_id is not None:
+            store.append_event(
+                payload.run_id,
+                "sandbox.execution_finished",
+                {
+                    "tool_name": tool_name,
+                    "execution_id": result.execution_id,
+                    "status": result.status.value,
+                    "duration_ms": result.duration_ms,
+                },
+            )
+        return result
+
     @app.post("/agent/message", response_model=AgentMessageResponse)
-    def handle_agent_message(payload: AgentMessageRequest, request: Request) -> AgentMessageResponse:
+    def handle_agent_message(
+        payload: AgentMessageRequest,
+        request: Request,
+    ) -> AgentMessageResponse:
         """Backward-compatible synchronous endpoint backed by the durable thread store."""
         store: SQLiteRunStore = request.app.state.run_store
         runtime = TravelAgentRuntime(retry_limit=2)
-        state_value = payload.state or store.load_thread_state(payload.thread_id) or AgentState(thread_id=payload.thread_id)
+        state_value = (
+            payload.state
+            or store.load_thread_state(payload.thread_id)
+            or AgentState(thread_id=payload.thread_id)
+        )
         result = runtime.handle_user_message(state_value, payload.user_message)
         store.save_thread_state(result.state)
         return AgentMessageResponse(
@@ -116,13 +177,24 @@ def create_app(*, database_path: str | Path | None = None, worker_count: int | N
             raise HTTPException(status_code=404, detail="Run not found") from exc
 
     @app.get("/runs/{run_id}/events", response_model=list[RunEvent])
-    def list_run_events(run_id: str, request: Request, after_sequence: int = Query(default=0, ge=0)) -> list[RunEvent]:
+    def list_run_events(
+        run_id: str,
+        request: Request,
+        after_sequence: int = Query(default=0, ge=0),
+    ) -> list[RunEvent]:
         if get_manager(request).get_run(run_id) is None:
             raise HTTPException(status_code=404, detail="Run not found")
-        return request.app.state.run_store.list_events(run_id, after_sequence=after_sequence)
+        return request.app.state.run_store.list_events(
+            run_id,
+            after_sequence=after_sequence,
+        )
 
     @app.get("/runs/{run_id}/events/stream")
-    async def stream_run_events(run_id: str, request: Request, after_sequence: int = Query(default=0, ge=0)) -> StreamingResponse:
+    async def stream_run_events(
+        run_id: str,
+        request: Request,
+        after_sequence: int = Query(default=0, ge=0),
+    ) -> StreamingResponse:
         manager = get_manager(request)
         if manager.get_run(run_id) is None:
             raise HTTPException(status_code=404, detail="Run not found")
@@ -132,7 +204,10 @@ def create_app(*, database_path: str | Path | None = None, worker_count: int | N
             while True:
                 if await request.is_disconnected():
                     return
-                events = request.app.state.run_store.list_events(run_id, after_sequence=sequence)
+                events = request.app.state.run_store.list_events(
+                    run_id,
+                    after_sequence=sequence,
+                )
                 for event in events:
                     sequence = event.sequence
                     data = json.dumps(event.model_dump(mode="json"))

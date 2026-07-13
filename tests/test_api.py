@@ -78,6 +78,48 @@ def test_async_run_api_and_event_history(tmp_path):
         assert state.json()["destination"] == "Tokyo"
 
 
+def test_tool_sandbox_api_and_run_event_linkage(tmp_path):
+    app = create_app(database_path=tmp_path / "runtime.db")
+    with TestClient(app) as client:
+        tools = client.get("/tools")
+        assert tools.status_code == 200
+        assert {item["name"] for item in tools.json()} == {
+            "rank_trip_options",
+            "route_cost_summary",
+        }
+
+        submitted = client.post(
+            "/runs",
+            json={
+                "thread_id": "sandbox-run-thread",
+                "user_message": "I want a 5-day Tokyo trip under 9000 SGD.",
+            },
+        )
+        run_id = submitted.json()["run_id"]
+        wait_for_run(client, run_id)
+
+        execution = client.post(
+            "/tools/route_cost_summary/execute",
+            json={
+                "run_id": run_id,
+                "arguments": {
+                    "transport_cost": 2000,
+                    "hotel_cost": 3000,
+                    "activity_cost": 1000,
+                    "budget": 7000,
+                },
+            },
+        )
+        assert execution.status_code == 200
+        assert execution.json()["status"] == "completed"
+        assert execution.json()["result"]["remaining_budget"] == 1000
+
+        events = client.get(f"/runs/{run_id}/events").json()
+        event_types = [event["event_type"] for event in events]
+        assert "sandbox.execution_started" in event_types
+        assert "sandbox.execution_finished" in event_types
+
+
 def test_run_submission_is_idempotent(tmp_path):
     app = create_app(database_path=tmp_path / "runtime.db")
     payload = {

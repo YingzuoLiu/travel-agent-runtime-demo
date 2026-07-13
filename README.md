@@ -1,11 +1,12 @@
 # Travel Agent Runtime Demo
 
-A runnable reference implementation of two related layers:
+A runnable reference implementation of three related layers:
 
 1. an **application-level Agent Runtime** for structured multi-turn travel planning;
-2. a small **self-hosted cloud runtime** for durable run lifecycle management.
+2. a small **self-hosted cloud runtime** for durable run lifecycle management;
+3. **policy-enforced registered-tool sandboxing** using restricted subprocess workers.
 
-The project is offline-first: it does not require an LLM key, Redis, PostgreSQL, or Kubernetes to demonstrate the runtime mechanics.
+The project is offline-first. It does not require an LLM key, Redis, PostgreSQL, or Kubernetes to demonstrate the runtime mechanics.
 
 ## Architecture
 
@@ -14,13 +15,16 @@ Client
   |
   v
 FastAPI control API
-  |- POST /agent/message   synchronous compatibility path
-  `- POST /runs            asynchronous runtime path
+  |- POST /agent/message
+  |- POST /runs
+  `- POST /tools/{tool}/execute
           |
-          v
-RuntimeManager ---- AgentRegistry (agent_id + exact version)
-  |
-  +---- worker queue
+          +-------------------------------+
+          |                               |
+          v                               v
+RuntimeManager ---- AgentRegistry     ToolSandbox ---- ToolRegistry
+  |                                      |
+  +---- worker queue                     `- restricted subprocess
   |
   +---- SQLiteRunStore
   |       |- runs
@@ -35,9 +39,21 @@ TravelAgentRuntime
   `- blocker propagation
 ```
 
-Both API paths read and write the same durable `thread_states` store. A thread created through `/agent/message` can therefore continue through `/runs`, and vice versa.
+Both Agent API paths read and write the same durable `thread_states` store. Tool executions may optionally attach their start and finish events to a durable `run_id`.
 
-## What v0.3 demonstrates
+## What the project demonstrates
+
+### Application runtime
+
+- typed `AgentState` with Pydantic;
+- explicit `StatePatch` transitions;
+- reducer-based nested-state updates;
+- partial replanning after changed constraints;
+- deterministic budget, itinerary, and flight validation;
+- optional geography grounding;
+- visible blockers and application trace events.
+
+### Cloud runtime
 
 - asynchronous `POST /runs` API;
 - durable `run_id` lifecycle;
@@ -48,42 +64,22 @@ Both API paths read and write the same durable `thread_states` store. A thread c
 - cooperative cancellation with an atomic completion guard;
 - idempotent run submission through `client_request_id`;
 - polling and Server-Sent Events APIs;
-- Docker, Docker Compose, and a deliberately single-replica Kubernetes manifest;
-- CI with Ruff, mypy, and pytest on Python 3.11 and 3.12.
+- Docker, Docker Compose, and a deliberately single-replica Kubernetes manifest.
 
-## Why this is more than an API wrapper
+### Registered-tool sandbox
 
-A synchronous wrapper is simply:
+- server-side tool allowlist;
+- Pydantic argument validation with unknown fields rejected;
+- fixed executable and fixed worker script;
+- fresh temporary working directory per execution;
+- scrubbed environment that does not forward runtime secrets;
+- wall-clock timeout and process-group termination;
+- bounded returned output;
+- POSIX CPU, memory, file-descriptor, and core-dump limits;
+- structured execution results;
+- optional linkage to append-only run events.
 
-```text
-HTTP request -> agent.run() -> HTTP response
-```
-
-The `/runs` path treats execution as a first-class resource:
-
-```text
-queued -> running -> completed
-                  -> failed
-queued/running    -> cancelled
-```
-
-Each run stores its input/output, status, timestamps, attempt count, pinned Agent version, latest serialized state, cancellation metadata, and append-only event history.
-
-## Application runtime
-
-The travel Agent keeps important state outside the prompt:
-
-```text
-User message
-  -> intent detection
-  -> StatePatch
-  -> reducer
-  -> partial replan
-  -> deterministic validator
-  -> blocker or final response
-```
-
-Core components include typed `AgentState`, explicit patch transitions, nested-state reduction, deterministic constraint validation, partial replanning, blocker propagation, and application trace events.
+The sandbox intentionally does **not** accept Python source, shell commands, executable paths, or arbitrary module names.
 
 ## Quick start
 
@@ -93,6 +89,13 @@ source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 pytest -q
 uvicorn api.main:app --reload
+```
+
+Health endpoints:
+
+```bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/ready
 ```
 
 ## Synchronous compatibility API
@@ -106,11 +109,9 @@ curl -X POST http://127.0.0.1:8000/agent/message \
   }'
 ```
 
-This endpoint executes in the request process but persists its updated state to the same SQLite checkpoint store used by asynchronous runs.
+This endpoint executes in the request process but saves its updated state to the same checkpoint store used by asynchronous runs.
 
 ## Durable run API
-
-Create a run:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/runs \
@@ -124,9 +125,7 @@ curl -X POST http://127.0.0.1:8000/runs \
   }'
 ```
 
-Repeating the same request with the same `client_request_id` returns the existing run instead of creating a duplicate.
-
-Inspect execution:
+Repeating the same `client_request_id` returns the existing run instead of creating a duplicate.
 
 ```bash
 curl http://127.0.0.1:8000/runs/<run_id>
@@ -135,19 +134,100 @@ curl -N http://127.0.0.1:8000/runs/<run_id>/events/stream
 curl -X POST http://127.0.0.1:8000/runs/<run_id>/cancel
 ```
 
+## Sandboxed tool API
+
+List the only tools clients are allowed to request:
+
+```bash
+curl http://127.0.0.1:8000/tools
+```
+
+Execute a deterministic tool:
+
+```bash
+curl -X POST http://127.0.0.1:8000/tools/route_cost_summary/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "run_id": null,
+    "arguments": {
+      "transport_cost": 2000,
+      "hotel_cost": 3000,
+      "activity_cost": 1000,
+      "budget": 7000
+    }
+  }'
+```
+
+An unknown tool is denied before any subprocess starts. Invalid arguments are rejected before execution. The default registry exposes:
+
+```text
+route_cost_summary
+rank_trip_options
+```
+
+## Security boundary
+
+The current backend is a **registered-tool process sandbox**, not a general untrusted-code service.
+
+It protects the runtime from accidental or unauthorized tool selection, malformed inputs, inherited API keys, runaway execution time, and excessive POSIX resource use. Registered tools remain trusted service code.
+
+The descriptor reports `network_mode: host` because the process backend does not claim to block outbound network access. It also does not create a private mount namespace, so it cannot safely run arbitrary user code or untrusted third-party MCP servers.
+
+The Docker image starts the service under `tini`, which runs as container PID 1, forwards signals, and reaps orphaned descendants. This prevents timed-out tools that spawn child processes from leaving unreaped zombies behind in long-running containers.
+
+That stronger boundary should use an ephemeral container, Kubernetes Job, gVisor sandbox, or microVM with:
+
+```text
+read-only root filesystem
++ isolated writable workspace
++ no host mounts
++ dropped capabilities
++ seccomp/AppArmor
++ disabled or allowlisted network
++ non-root UID
++ CPU/memory/PID limits
++ execution deadline
++ approved image/dependency set
+```
+
+See [`docs/cloud-runtime.md`](docs/cloud-runtime.md) for the detailed execution and security model.
+
+## Agent integration boundary
+
+The sandbox is currently exposed as an independent control-plane API. `TravelAgentRuntime` does not yet invoke tools from an LLM or planner-driven tool loop.
+
+This keeps the current threat model narrow and testable: external clients may request only registered tools through the API. A later Agent tool-calling integration must add per-Agent tool permissions, prompt-injection defenses, approval policies for side effects, per-call idempotency, and trace linkage between planner decisions and sandbox executions.
+
 ## Cancellation semantics
 
-Cancellation is cooperative: code already executing inside an Agent step is not forcibly interrupted. The store sets `cancel_requested` atomically, and completion uses a conditional update (`WHERE cancel_requested = 0`). A cancel arriving at the execution boundary therefore cannot be silently overwritten by a stale whole-row write.
+Cancellation is cooperative: code already executing inside an Agent step is not forcibly interrupted. The database sets `cancel_requested` atomically, and completion uses `WHERE cancel_requested = 0`. A cancel arriving at the execution boundary cannot be overwritten by a stale whole-row write.
 
 ## Restart recovery
 
-At startup, the manager scans durable records left in `queued` or `running`. A previously running task is moved back to `queued`, receives a `run.recovered` event, and executes again.
+At startup, `RuntimeManager` requeues durable records left in `queued` or `running`. A previously running task receives a `run.recovered` event and executes again.
 
-This is safe for the current deterministic demo. Real booking or payment tools would additionally require per-tool-call idempotency records.
+This is safe for the deterministic demo. Booking and payment tools would additionally require per-tool-call idempotency records.
+
+## Tests and CI
+
+The suite covers:
+
+- state patching and deterministic validation;
+- multi-turn checkpoint continuation;
+- state sharing between synchronous and asynchronous APIs;
+- cancellation before start and after an execution boundary;
+- restart recovery and two-worker execution;
+- idempotent run submission;
+- tool allowlisting and argument-schema rejection;
+- subprocess timeout termination;
+- parent-secret environment scrubbing;
+- sandbox API execution and run-event linkage.
+
+GitHub Actions runs compile checks, Ruff, scoped mypy, and pytest on Python 3.11 and 3.12. A separate container smoke job builds the Docker image and verifies that `/usr/bin/tini` is the configured entrypoint.
 
 ## Deployment boundary
 
-SQLite and the in-process queue keep the project self-contained, but they are not a horizontally scalable architecture. The Kubernetes manifest therefore uses one replica and persistent storage.
+SQLite and the in-process queue keep the project self-contained, but they are not horizontally scalable. The Kubernetes manifest therefore uses one replica and persistent storage.
 
 Before increasing replicas, replace them with:
 
@@ -157,20 +237,8 @@ PostgreSQL runs/checkpoints/events
 + worker lease and heartbeat
 + idempotent tool-call ledger
 + OpenTelemetry traces and metrics
++ container-backed sandbox workers
 ```
-
-## Tests
-
-The suite covers:
-
-- state patching and deterministic validation;
-- multi-turn checkpoint continuation;
-- state sharing between synchronous and asynchronous APIs;
-- cancellation before start and after an execution boundary;
-- restart recovery;
-- two-worker execution;
-- idempotent run submission;
-- persistent events and state across store instances.
 
 ## Deliberate limitations
 
@@ -182,8 +250,11 @@ This is a cloud-runtime prototype, not a complete Agent Platform:
 - no authentication, tenant isolation, or quotas;
 - no external secret manager integration;
 - no tool-call idempotency ledger yet;
-- no code/tool sandbox yet;
+- process sandbox does not isolate host networking or the full host filesystem;
+- POSIX resource limits are weaker on Windows;
+- no arbitrary user-code execution endpoint;
+- sandbox is not yet integrated into the Agent decision loop;
 - no OpenTelemetry backend or evaluation dashboard;
 - no real flight, hotel, payment, or booking API.
 
-> A self-hosted Agent Runtime prototype that separates application-level planning, structured state updates, and deterministic validation from cloud execution concerns such as run lifecycle, version pinning, durable checkpoints, worker dispatch, cancellation, restart recovery, idempotent submission, and event observability.
+> A self-hosted Agent Runtime prototype that combines structured planning, durable execution lifecycle, version pinning, checkpoint recovery, cancellation, event observability, idempotent submission, and policy-enforced registered-tool sandboxing.
