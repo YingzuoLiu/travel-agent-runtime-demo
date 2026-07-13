@@ -5,7 +5,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
@@ -22,16 +22,13 @@ from runtime_service import (
     build_default_registry,
 )
 
-runtime = TravelAgentRuntime(retry_limit=2)
-STATE_STORE: Dict[str, AgentState] = {}
-
 
 class AgentMessageRequest(BaseModel):
     thread_id: str = Field(..., description="Conversation or task thread id.")
     user_message: str = Field(..., description="User message to process.")
     state: Optional[AgentState] = Field(
         default=None,
-        description="Optional client-provided state. If omitted, server loads from STATE_STORE.",
+        description="Optional client-provided state. If omitted, server loads the durable thread checkpoint.",
     )
 
 
@@ -41,25 +38,15 @@ class AgentMessageResponse(BaseModel):
     validation_errors: list[str]
 
 
-def create_app(
-    *,
-    database_path: str | Path | None = None,
-    worker_count: int | None = None,
-) -> FastAPI:
-    resolved_database_path = Path(
-        database_path or os.getenv("RUNTIME_DB_PATH", "runtime_data/runtime.db")
-    )
+def create_app(*, database_path: str | Path | None = None, worker_count: int | None = None) -> FastAPI:
+    resolved_database_path = Path(database_path or os.getenv("RUNTIME_DB_PATH", "runtime_data/runtime.db"))
     resolved_worker_count = worker_count or int(os.getenv("RUNTIME_WORKER_COUNT", "1"))
     registry = build_default_registry()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         store = SQLiteRunStore(resolved_database_path)
-        manager = RuntimeManager(
-            store=store,
-            registry=registry,
-            worker_count=resolved_worker_count,
-        )
+        manager = RuntimeManager(store=store, registry=registry, worker_count=resolved_worker_count)
         manager.start()
         app.state.run_store = store
         app.state.runtime_manager = manager
@@ -94,11 +81,13 @@ def create_app(
         return request.app.state.agent_registry.list_agents()
 
     @app.post("/agent/message", response_model=AgentMessageResponse)
-    def handle_agent_message(request: AgentMessageRequest) -> AgentMessageResponse:
-        """Backward-compatible synchronous endpoint for the original demo."""
-        state = request.state or STATE_STORE.get(request.thread_id) or AgentState(thread_id=request.thread_id)
-        result = runtime.handle_user_message(state, request.user_message)
-        STATE_STORE[request.thread_id] = result.state
+    def handle_agent_message(payload: AgentMessageRequest, request: Request) -> AgentMessageResponse:
+        """Backward-compatible synchronous endpoint backed by the durable thread store."""
+        store: SQLiteRunStore = request.app.state.run_store
+        runtime = TravelAgentRuntime(retry_limit=2)
+        state_value = payload.state or store.load_thread_state(payload.thread_id) or AgentState(thread_id=payload.thread_id)
+        result = runtime.handle_user_message(state_value, payload.user_message)
+        store.save_thread_state(result.state)
         return AgentMessageResponse(
             assistant_message=result.message,
             updated_state=result.state,
@@ -127,21 +116,13 @@ def create_app(
             raise HTTPException(status_code=404, detail="Run not found") from exc
 
     @app.get("/runs/{run_id}/events", response_model=list[RunEvent])
-    def list_run_events(
-        run_id: str,
-        request: Request,
-        after_sequence: int = Query(default=0, ge=0),
-    ) -> list[RunEvent]:
+    def list_run_events(run_id: str, request: Request, after_sequence: int = Query(default=0, ge=0)) -> list[RunEvent]:
         if get_manager(request).get_run(run_id) is None:
             raise HTTPException(status_code=404, detail="Run not found")
         return request.app.state.run_store.list_events(run_id, after_sequence=after_sequence)
 
     @app.get("/runs/{run_id}/events/stream")
-    async def stream_run_events(
-        run_id: str,
-        request: Request,
-        after_sequence: int = Query(default=0, ge=0),
-    ) -> StreamingResponse:
+    async def stream_run_events(run_id: str, request: Request, after_sequence: int = Query(default=0, ge=0)) -> StreamingResponse:
         manager = get_manager(request)
         if manager.get_run(run_id) is None:
             raise HTTPException(status_code=404, detail="Run not found")
@@ -156,7 +137,6 @@ def create_app(
                     sequence = event.sequence
                     data = json.dumps(event.model_dump(mode="json"))
                     yield f"event: {event.event_type}\ndata: {data}\n\n"
-
                 run = manager.get_run(run_id)
                 if run is None or (run.status.is_terminal and not events):
                     return
