@@ -5,6 +5,16 @@ from fastapi.testclient import TestClient
 from api.main import create_app
 
 
+def wait_for_run(client: TestClient, run_id: str, timeout: float = 3.0) -> dict:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        body = client.get(f"/runs/{run_id}").json()
+        if body["status"] in {"completed", "failed", "cancelled"}:
+            return body
+        time.sleep(0.02)
+    raise AssertionError("run did not finish")
+
+
 def test_fastapi_agent_message_endpoint(tmp_path):
     app = create_app(database_path=tmp_path / "runtime.db")
     with TestClient(app) as client:
@@ -21,6 +31,30 @@ def test_fastapi_agent_message_endpoint(tmp_path):
     assert body["updated_state"]["budget"] == 7000
 
 
+def test_sync_and_async_endpoints_share_thread_state(tmp_path):
+    app = create_app(database_path=tmp_path / "runtime.db")
+    with TestClient(app) as client:
+        first = client.post(
+            "/agent/message",
+            json={
+                "thread_id": "shared-thread",
+                "user_message": "I want a 5-day Tokyo trip under 7000 SGD.",
+            },
+        )
+        assert first.status_code == 200
+        submitted = client.post(
+            "/runs",
+            json={
+                "thread_id": "shared-thread",
+                "user_message": "Change the budget to 9000 and avoid red-eye flights.",
+            },
+        )
+        result = wait_for_run(client, submitted.json()["run_id"])
+        assert result["state"]["destination"] == "Tokyo"
+        assert result["state"]["budget"] == 9000
+        assert result["state"]["preferences"]["avoid_red_eye"] is True
+
+
 def test_async_run_api_and_event_history(tmp_path):
     app = create_app(database_path=tmp_path / "runtime.db")
     with TestClient(app) as client:
@@ -33,17 +67,7 @@ def test_async_run_api_and_event_history(tmp_path):
         )
         assert response.status_code == 202
         run_id = response.json()["run_id"]
-
-        deadline = time.monotonic() + 3
-        while time.monotonic() < deadline:
-            run_response = client.get(f"/runs/{run_id}")
-            body = run_response.json()
-            if body["status"] in {"completed", "failed", "cancelled"}:
-                break
-            time.sleep(0.02)
-        else:
-            raise AssertionError("run did not finish")
-
+        body = wait_for_run(client, run_id)
         assert body["status"] == "completed"
         assert body["agent_version"] == "0.3.0"
         events = client.get(f"/runs/{run_id}/events").json()
@@ -52,6 +76,21 @@ def test_async_run_api_and_event_history(tmp_path):
         state = client.get("/threads/api-run-thread/state")
         assert state.status_code == 200
         assert state.json()["destination"] == "Tokyo"
+
+
+def test_run_submission_is_idempotent(tmp_path):
+    app = create_app(database_path=tmp_path / "runtime.db")
+    payload = {
+        "thread_id": "idempotent-thread",
+        "user_message": "I want a 5-day Tokyo trip under 9000 SGD.",
+        "client_request_id": "client-request-001",
+    }
+    with TestClient(app) as client:
+        first = client.post("/runs", json=payload)
+        second = client.post("/runs", json=payload)
+        assert first.status_code == 202
+        assert second.status_code == 202
+        assert first.json()["run_id"] == second.json()["run_id"]
 
 
 def test_unknown_agent_version_is_rejected(tmp_path):
