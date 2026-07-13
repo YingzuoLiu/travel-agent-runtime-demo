@@ -8,6 +8,36 @@ A runnable reference implementation of three related layers:
 
 The project is offline-first. It does not require an LLM key, Redis, PostgreSQL, or Kubernetes to demonstrate the runtime mechanics.
 
+## Why this project exists
+
+Long-horizon Agent failures are not only model-quality problems. They also come from state drift, silently skipped constraints, ambiguous completion metrics, duplicate execution, cancellation races, restart recovery, and unsafe tool boundaries.
+
+The project started as an application-runtime experiment around typed state, validation, retry, and partial replanning. An ablation study then produced a counterintuitive result:
+
+```text
+full runtime completion rate: 50%
+no-validator completion rate: 75%
+```
+
+The higher no-validator score was misleading. Trace inspection showed that the apparently completed plan violated the user's budget. The validator reduced nominal completion rate because it surfaced an invalid plan instead of silently accepting it.
+
+The detailed scenarios, configurations, traces, and findings are documented in [`FINDINGS.md`](FINDINGS.md).
+
+That experiment established the reliability theme that now connects the whole repository:
+
+> Do not let the system look successful while failing somewhere the user or operator cannot see.
+
+The later engineering work extends that same objective across additional boundaries:
+
+- typed state and deterministic validation make constraint violations visible;
+- durable run records make execution state observable across requests and restarts;
+- atomic completion and cancellation updates prevent stale writes from hiding races;
+- idempotent submission prevents network retries from silently duplicating work;
+- tool allowlists and schema validation prevent unapproved execution;
+- subprocess timeouts, resource limits, and `tini` prevent runaway work from leaking resources.
+
+The engineering layer is therefore not a replacement for the evaluation work. It is the next layer of the same reliability problem.
+
 ## Architecture
 
 ```text
@@ -43,6 +73,17 @@ Both Agent API paths read and write the same durable `thread_states` store. Tool
 
 ## What the project demonstrates
 
+### Evaluation and behavioral analysis
+
+- controlled ablations for validator and retry behavior;
+- scenario-level completion, blocker, replan, and validation measurements;
+- trace inspection to distinguish real success from silent constraint violations;
+- a concrete finding that completion rate alone is not a sufficient Agent metric;
+- a bug discovered through evaluation: confirmation intent was previously treated as an unsupported request;
+- a remaining product gap: budget failure needs alternative suggestions rather than repeated invalid replans.
+
+See [`FINDINGS.md`](FINDINGS.md) for the full study.
+
 ### Application runtime
 
 - typed `AgentState` with Pydantic;
@@ -76,6 +117,7 @@ Both Agent API paths read and write the same durable `thread_states` store. Tool
 - wall-clock timeout and process-group termination;
 - bounded returned output;
 - POSIX CPU, memory, file-descriptor, and core-dump limits;
+- `tini` as container PID 1 to reap orphaned descendants;
 - structured execution results;
 - optional linkage to append-only run events.
 
@@ -173,9 +215,9 @@ It protects the runtime from accidental or unauthorized tool selection, malforme
 
 The descriptor reports `network_mode: host` because the process backend does not claim to block outbound network access. It also does not create a private mount namespace, so it cannot safely run arbitrary user code or untrusted third-party MCP servers.
 
-The Docker image starts the service under `tini`, which runs as container PID 1, forwards signals, and reaps orphaned descendants. This prevents timed-out tools that spawn child processes from leaving unreaped zombies behind in long-running containers.
+The Docker image starts the service under `tini`, which runs as container PID 1, forwards signals, and reaps orphaned descendants. This prevents timed-out tools that spawn child processes from leaving unreaped zombies in long-running containers. Running directly on a host still relies on the host init or service manager for orphan reaping.
 
-That stronger boundary should use an ephemeral container, Kubernetes Job, gVisor sandbox, or microVM with:
+A stronger boundary should use an ephemeral container, Kubernetes Job, gVisor sandbox, or microVM with:
 
 ```text
 read-only root filesystem
@@ -197,6 +239,30 @@ See [`docs/cloud-runtime.md`](docs/cloud-runtime.md) for the detailed execution 
 The sandbox is currently exposed as an independent control-plane API. `TravelAgentRuntime` does not yet invoke tools from an LLM or planner-driven tool loop.
 
 This keeps the current threat model narrow and testable: external clients may request only registered tools through the API. A later Agent tool-calling integration must add per-Agent tool permissions, prompt-injection defenses, approval policies for side effects, per-call idempotency, and trace linkage between planner decisions and sandbox executions.
+
+## How to explain this project
+
+A useful interview explanation is to present the repository as an evidence-driven progression rather than a list of infrastructure features.
+
+### 1. Start with the behavioral finding
+
+> I first built a structured travel-planning runtime and ran an ablation study. Disabling the validator increased completion rate from 50% to 75%, but trace inspection showed that the extra completion was a budget-violating plan. That taught me that Agent completion rate can reward silent failure, so I evaluate constraint satisfaction and blockers separately.
+
+### 2. Explain the application-runtime response
+
+> I keep important constraints in typed state rather than prompt history, apply changes through `StatePatch` and a reducer, partially replan after updates, and run deterministic validation before treating a plan as successful.
+
+### 3. Explain how the reliability objective moved outward
+
+> I then extended the same reliability principle into the execution layer: durable run lifecycle, restart recovery, cancellation-safe atomic updates, idempotent submission, append-only events, and a registered-tool sandbox. The goal is the same at every layer—make invalid or unsafe behavior explicit instead of allowing the system to appear successful.
+
+### 4. State the boundary honestly
+
+> This is a self-hosted Agent Runtime prototype, not a production multi-tenant platform. SQLite and the local queue are intentionally single-replica, and the process sandbox does not isolate host networking or the complete filesystem. Those boundaries are documented rather than hidden.
+
+A concise one-line summary:
+
+> An evidence-driven Agent Runtime prototype that combines ablation-based reliability findings with typed state, deterministic validation, durable execution, race-safe lifecycle management, and policy-enforced tool sandboxing.
 
 ## Cancellation semantics
 
@@ -257,4 +323,4 @@ This is a cloud-runtime prototype, not a complete Agent Platform:
 - no OpenTelemetry backend or evaluation dashboard;
 - no real flight, hotel, payment, or booking API.
 
-> A self-hosted Agent Runtime prototype that combines structured planning, durable execution lifecycle, version pinning, checkpoint recovery, cancellation, event observability, idempotent submission, and policy-enforced registered-tool sandboxing.
+> An evidence-driven Agent Runtime prototype that connects behavioral evaluation with structured state, deterministic validation, durable execution lifecycle, checkpoint recovery, cancellation safety, idempotent submission, event observability, and policy-enforced registered-tool sandboxing.
