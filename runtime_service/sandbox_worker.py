@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from typing import Any
 
 
@@ -45,9 +47,21 @@ def rank_trip_options(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ranking": normalized}
 
 
+def _sleep_test(payload: dict[str, Any]) -> dict[str, Any]:
+    time.sleep(float(payload["seconds"]))
+    return {"slept": float(payload["seconds"])}
+
+
+def _environment_probe(payload: dict[str, Any]) -> dict[str, Any]:
+    keys = [str(key) for key in payload["keys"]]
+    return {"present": {key: key in os.environ for key in keys}}
+
+
 TOOLS = {
     "route_cost_summary": route_cost_summary,
     "rank_trip_options": rank_trip_options,
+    "_sleep_test": _sleep_test,
+    "_environment_probe": _environment_probe,
 }
 
 
