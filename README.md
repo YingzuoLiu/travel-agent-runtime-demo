@@ -240,30 +240,6 @@ The sandbox is currently exposed as an independent control-plane API. `TravelAge
 
 This keeps the current threat model narrow and testable: external clients may request only registered tools through the API. A later Agent tool-calling integration must add per-Agent tool permissions, prompt-injection defenses, approval policies for side effects, per-call idempotency, and trace linkage between planner decisions and sandbox executions.
 
-## How to explain this project
-
-A useful interview explanation is to present the repository as an evidence-driven progression rather than a list of infrastructure features.
-
-### 1. Start with the behavioral finding
-
-> I first built a structured travel-planning runtime and ran an ablation study. Disabling the validator increased completion rate from 50% to 75%, but trace inspection showed that the extra completion was a budget-violating plan. That taught me that Agent completion rate can reward silent failure, so I evaluate constraint satisfaction and blockers separately.
-
-### 2. Explain the application-runtime response
-
-> I keep important constraints in typed state rather than prompt history, apply changes through `StatePatch` and a reducer, partially replan after updates, and run deterministic validation before treating a plan as successful.
-
-### 3. Explain how the reliability objective moved outward
-
-> I then extended the same reliability principle into the execution layer: durable run lifecycle, restart recovery, cancellation-safe atomic updates, idempotent submission, append-only events, and a registered-tool sandbox. The goal is the same at every layer—make invalid or unsafe behavior explicit instead of allowing the system to appear successful.
-
-### 4. State the boundary honestly
-
-> This is a self-hosted Agent Runtime prototype, not a production multi-tenant platform. SQLite and the local queue are intentionally single-replica, and the process sandbox does not isolate host networking or the complete filesystem. Those boundaries are documented rather than hidden.
-
-A concise one-line summary:
-
-> An evidence-driven Agent Runtime prototype that combines ablation-based reliability findings with typed state, deterministic validation, durable execution, race-safe lifecycle management, and policy-enforced tool sandboxing.
-
 ## Cancellation semantics
 
 Cancellation is cooperative: code already executing inside an Agent step is not forcibly interrupted. The database sets `cancel_requested` atomically, and completion uses `WHERE cancel_requested = 0`. A cancel arriving at the execution boundary cannot be overwritten by a stale whole-row write.
