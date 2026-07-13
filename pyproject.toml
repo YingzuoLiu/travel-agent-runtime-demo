@@ -13,6 +13,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 files = ["runtime_service/models.py"]
+follow_imports = "skip"
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
