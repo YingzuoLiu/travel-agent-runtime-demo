@@ -1,10 +1,12 @@
 # Travel Agent Runtime Demo
 
-A runnable reference implementation of three related layers:
+A runnable reference implementation of four related layers:
 
 1. an **application-level Agent Runtime** for structured multi-turn travel planning;
 2. a small **self-hosted cloud runtime** for durable run lifecycle management;
 3. **policy-enforced registered-tool sandboxing** using restricted subprocess workers.
+4. an optional **evidence-review workflow** with typed handoff, partial results, and
+   validator-gated local replanning.
 
 The project is offline-first. It does not require an LLM key, Redis, PostgreSQL, or Kubernetes to demonstrate the runtime mechanics.
 
@@ -65,6 +67,10 @@ RuntimeManager ---- AgentRegistry     ToolSandbox ---- ToolRegistry
 TravelAgentRuntime
   |- intent -> StatePatch -> reducer
   |- partial replan
+  |- optional evidence review workflow
+  |    |- PlanEvidenceBuilder -> role-specific contexts
+  |    |- BudgetChecker + PreferenceReviewer
+  |    `- deterministic FindingReducer -> ReplanDirective
   |- deterministic validator
   `- blocker propagation
 ```
@@ -92,7 +98,15 @@ See [`FINDINGS.md`](FINDINGS.md) for the full study.
 - partial replanning after changed constraints;
 - deterministic budget, itinerary, and flight validation;
 - optional geography grounding;
+- a feature-flagged Budget + Preference review workflow;
+- one canonical `PlanEvidence` snapshot with role-limited typed projections;
+- structured evidence, checked-rule coverage, and explicit skipped checks;
+- deadline-aware concurrent review with `completed_partial` semantics;
+- deterministic finding reduction and typed local-replan directives;
 - visible blockers and application trace events.
+
+See [`docs/evidence-review-workflow.md`](docs/evidence-review-workflow.md) for the review
+contracts, retry semantics, offline semantic-analyzer boundary, and deliberate next steps.
 
 ### Cloud runtime
 
@@ -162,12 +176,15 @@ curl -X POST http://127.0.0.1:8000/runs \
     "thread_id": "tokyo-trip-001",
     "user_message": "Change the budget to 10000 and avoid red-eye flights.",
     "agent_id": "travel-agent",
-    "agent_version": "0.3.0",
+    "agent_version": "0.5.0",
     "client_request_id": "request-20260713-001"
   }'
 ```
 
 Repeating the same `client_request_id` returns the existing run instead of creating a duplicate.
+
+`travel-agent:0.5.0` opts into the evidence-review path. The original
+`travel-agent:0.3.0` version remains registered and unchanged for controlled comparisons.
 
 ```bash
 curl http://127.0.0.1:8000/runs/<run_id>
@@ -255,6 +272,9 @@ This is safe for the deterministic demo. Booking and payment tools would additio
 The suite covers:
 
 - state patching and deterministic validation;
+- typed review evidence, context isolation, checked-rule coverage, and finding reduction;
+- reviewer timeout, bounded retry, partial-result, and feature-flag behavior;
+- ten labeled clean/error review fixtures with precision/recall regression checks;
 - multi-turn checkpoint continuation;
 - state sharing between synchronous and asynchronous APIs;
 - cancellation before start and after an execution boundary;
@@ -298,5 +318,7 @@ This is a cloud-runtime prototype, not a complete Agent Platform:
 - sandbox is not yet integrated into the Agent decision loop;
 - no OpenTelemetry backend or evaluation dashboard;
 - no real flight, hotel, payment, or booking API.
+- no real LLM preference analyzer by default; the semantic analyzer is an injectable boundary;
+- Schedule/Geography reviewers and workflow-task persistence are not part of the first slice.
 
 > An evidence-driven Agent Runtime prototype that connects behavioral evaluation with structured state, deterministic validation, durable execution lifecycle, checkpoint recovery, cancellation safety, idempotent submission, event observability, and policy-enforced registered-tool sandboxing.

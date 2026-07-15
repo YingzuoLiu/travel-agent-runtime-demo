@@ -78,6 +78,29 @@ def test_async_run_api_and_event_history(tmp_path):
         assert state.json()["destination"] == "Tokyo"
 
 
+def test_async_run_can_opt_into_evidence_review_agent_version(tmp_path):
+    app = create_app(database_path=tmp_path / "runtime.db")
+    with TestClient(app) as client:
+        submitted = client.post(
+            "/runs",
+            json={
+                "thread_id": "review-api-thread",
+                "user_message": "I want a 5-day Tokyo trip under 7000 SGD.",
+                "agent_version": "0.5.0",
+            },
+        )
+        result = wait_for_run(client, submitted.json()["run_id"])
+
+    assert result["status"] == "completed"
+    assert result["agent_version"] == "0.5.0"
+    assert result["state"]["itinerary"]["total_cost"] == 5800
+    assert result["validation_errors"] == []
+    assert any(
+        event["event"] == "review_workflow_finished"
+        for event in result["state"]["execution_trace"]
+    )
+
+
 def test_tool_sandbox_api_and_run_event_linkage(tmp_path):
     app = create_app(database_path=tmp_path / "runtime.db")
     with TestClient(app) as client:
