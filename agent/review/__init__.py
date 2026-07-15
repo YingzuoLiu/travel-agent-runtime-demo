@@ -1,5 +1,6 @@
 from .evidence import ContextProjector, PlanEvidenceBuilder
 from .models import (
+    CostLedgerStatus,
     EvidenceRef,
     FindingBasis,
     FindingSeverity,
@@ -20,6 +21,7 @@ from .reviewers import BudgetChecker, PreferenceReviewer
 __all__ = [
     "BudgetChecker",
     "ContextProjector",
+    "CostLedgerStatus",
     "EvidenceRef",
     "FindingBasis",
     "FindingSeverity",

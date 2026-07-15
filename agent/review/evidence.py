@@ -7,6 +7,7 @@ from agent.state import AgentState
 from .models import (
     BudgetReviewContext,
     CandidatePlanEvidence,
+    CostLedgerStatus,
     CostItem,
     MemoryEvidence,
     PlanEvidence,
@@ -18,6 +19,8 @@ from .models import (
 
 class PlanEvidenceBuilder:
     """Build one canonical fact snapshot before reviewers run in parallel."""
+
+    COST_TOTAL_TOLERANCE = 0.01
 
     _COST_KEYS = {
         "flight_cost": ("flight", False),
@@ -38,7 +41,13 @@ class PlanEvidenceBuilder:
             )
 
         issues: list[str] = []
-        cost_ledger = self._build_cost_ledger(state, issues)
+        cost_ledger, cost_ledger_status = self._build_cost_ledger(state, issues)
+        self._check_cost_total_consistency(
+            candidate,
+            cost_ledger,
+            cost_ledger_status,
+            issues,
+        )
         relevant_memory = self._build_memory_evidence(state, issues)
 
         return PlanEvidence(
@@ -48,6 +57,7 @@ class PlanEvidenceBuilder:
             explicit_preferences=dict(state.preferences),
             relevant_memory=relevant_memory,
             cost_ledger=cost_ledger,
+            cost_ledger_status=cost_ledger_status,
             evidence_issues=issues,
         )
 
@@ -55,23 +65,26 @@ class PlanEvidenceBuilder:
         self,
         state: AgentState,
         issues: list[str],
-    ) -> list[CostItem]:
+    ) -> tuple[list[CostItem], CostLedgerStatus]:
         raw_breakdown = state.tool_outputs.get("cost_breakdown")
         if raw_breakdown is None:
             if state.itinerary is None:
-                return []
+                return [], CostLedgerStatus.UNAVAILABLE
             issues.append("cost_breakdown_missing_using_plan_total")
-            return [
-                CostItem(
-                    item_id="plan-total",
-                    category="plan_total",
-                    amount=float(state.itinerary.total_cost),
-                    source_id="itinerary",
-                )
-            ]
+            return (
+                [
+                    CostItem(
+                        item_id="plan-total",
+                        category="plan_total",
+                        amount=float(state.itinerary.total_cost),
+                        source_id="itinerary",
+                    )
+                ],
+                CostLedgerStatus.FALLBACK,
+            )
         if not isinstance(raw_breakdown, dict):
             issues.append("cost_breakdown_invalid")
-            return []
+            return [], CostLedgerStatus.INCOMPLETE
 
         ledger: list[CostItem] = []
         for key, (category, per_day) in self._COST_KEYS.items():
@@ -93,7 +106,29 @@ class PlanEvidenceBuilder:
                     source_id="tool_outputs.cost_breakdown",
                 )
             )
-        return ledger
+        status = (
+            CostLedgerStatus.COMPLETE
+            if len(ledger) == len(self._COST_KEYS)
+            else CostLedgerStatus.INCOMPLETE
+        )
+        return ledger, status
+
+    def _check_cost_total_consistency(
+        self,
+        candidate: CandidatePlanEvidence | None,
+        ledger: list[CostItem],
+        status: CostLedgerStatus,
+        issues: list[str],
+    ) -> None:
+        if candidate is None or status != CostLedgerStatus.COMPLETE:
+            return
+        ledger_total = sum(item.amount for item in ledger)
+        if abs(ledger_total - candidate.total_cost) <= self.COST_TOTAL_TOLERANCE:
+            return
+        issues.append(
+            "cost_total_mismatch:"
+            f"plan_total={candidate.total_cost:g},ledger_total={ledger_total:g}"
+        )
 
     @staticmethod
     def _build_memory_evidence(
@@ -139,6 +174,7 @@ class ContextProjector:
                 candidate_plan=evidence.candidate_plan,
                 budget_limit=evidence.budget_limit,
                 cost_ledger=evidence.cost_ledger,
+                cost_ledger_status=evidence.cost_ledger_status,
             )
         if reviewer == ReviewerRole.PREFERENCE:
             return PreferenceReviewContext(

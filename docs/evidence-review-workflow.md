@@ -141,6 +141,15 @@ The fixture is a mechanics and regression check, not evidence that multiple revi
 better than one. A fair architecture experiment still needs the same model, fact inputs,
 prompt effort, and comparable token budget for generalist and specialist conditions.
 
+Its result should be reported as `10/10 deterministic regression fixtures passed`, not as
+model accuracy, precision, or recall. The fixtures and reviewer rules were designed together
+and are not an independently labeled evaluation set.
+
+Budget review uses the expanded tool cost ledger as the authoritative total only when all
+expected ledger fields are present. A missing ledger falls back to the plan total with an
+explicit evidence issue; a complete ledger that disagrees with the plan total records a
+`cost_total_mismatch` issue instead of silently trusting the upstream aggregate.
+
 ## Deliberate next boundaries
 
 - add Schedule and Geography consumers after shared route/time facts exist;

@@ -20,6 +20,15 @@ class EvidenceSourceType(str, Enum):
     TOOL_RESULT = "tool_result"
 
 
+class CostLedgerStatus(str, Enum):
+    """Whether the cost ledger can independently verify the plan total."""
+
+    COMPLETE = "complete"
+    FALLBACK = "fallback"
+    INCOMPLETE = "incomplete"
+    UNAVAILABLE = "unavailable"
+
+
 class FindingBasis(str, Enum):
     DETERMINISTIC = "deterministic"
     LLM_SEMANTIC = "llm_semantic"
@@ -115,6 +124,7 @@ class PlanEvidence(BaseModel):
     explicit_preferences: dict[str, Any] = Field(default_factory=dict)
     relevant_memory: list[MemoryEvidence] = Field(default_factory=list)
     cost_ledger: list[CostItem] = Field(default_factory=list)
+    cost_ledger_status: CostLedgerStatus = CostLedgerStatus.UNAVAILABLE
     evidence_issues: list[str] = Field(default_factory=list)
 
 
@@ -125,6 +135,7 @@ class BudgetReviewContext(BaseModel):
     candidate_plan: CandidatePlanEvidence | None
     budget_limit: float | None
     cost_ledger: list[CostItem] = Field(default_factory=list)
+    cost_ledger_status: CostLedgerStatus = CostLedgerStatus.UNAVAILABLE
 
 
 class PreferenceReviewContext(BaseModel):

@@ -2,6 +2,7 @@ import asyncio
 
 from agent.review.evidence import ContextProjector, PlanEvidenceBuilder
 from agent.review.models import (
+    CostLedgerStatus,
     EvidenceRef,
     EvidenceSourceType,
     FindingBasis,
@@ -28,7 +29,18 @@ def review_state(
     budget: int = 7000,
     preferences: dict | None = None,
     memory_refs: list[dict] | None = None,
+    ledger_total: int | float | None = None,
+    include_cost_breakdown: bool = True,
 ) -> AgentState:
+    ledger_total = total_cost if ledger_total is None else ledger_total
+    activity_cost_per_day = (ledger_total - 1800 - 5 * 650) / 5
+    tool_outputs: dict[str, object] = {"memory_refs": memory_refs or []}
+    if include_cost_breakdown:
+        tool_outputs["cost_breakdown"] = {
+            "flight_cost": 1800,
+            "hotel_cost_per_day": 650,
+            "activity_cost_per_day": activity_cost_per_day,
+        }
     return AgentState(
         thread_id="review-test",
         destination="Tokyo",
@@ -43,14 +55,7 @@ def review_state(
             poi_style="balanced itinerary",
             total_cost=total_cost,
         ),
-        tool_outputs={
-            "cost_breakdown": {
-                "flight_cost": 1800,
-                "hotel_cost_per_day": 650,
-                "activity_cost_per_day": 510,
-            },
-            "memory_refs": memory_refs or [],
-        },
+        tool_outputs=tool_outputs,
     )
 
 
@@ -78,10 +83,78 @@ def test_plan_evidence_is_built_once_then_projected_by_role():
     )
 
     assert sum(item.amount for item in evidence.cost_ledger) == 7600
+    assert evidence.cost_ledger_status == CostLedgerStatus.COMPLETE
+    assert evidence.evidence_issues == []
     assert not hasattr(budget, "explicit_preferences")
     assert not hasattr(budget, "relevant_memory")
     assert preference.explicit_preferences == {"avoid_red_eye": True}
     assert preference.relevant_memory[0].memory_id == "memory-1"
+
+
+def test_budget_checker_uses_complete_ledger_and_records_total_mismatch():
+    result = WorkflowOrchestrator().run_sync(
+        review_state(total_cost=6500, budget=7000, ledger_total=7600)
+    )
+
+    assert [finding.finding_type for finding in result.findings] == [
+        FindingType.BUDGET_OVERRUN
+    ]
+    assert result.evidence_issues == [
+        "cost_total_mismatch:plan_total=6500,ledger_total=7600"
+    ]
+    budget_finding = result.findings[0]
+    computed_total = next(
+        evidence
+        for evidence in budget_finding.evidence
+        if evidence.field == "computed_total"
+    )
+    assert computed_total.observed == 7600
+
+
+def test_budget_checker_does_not_report_overrun_when_complete_ledger_is_within_budget():
+    result = WorkflowOrchestrator().run_sync(
+        review_state(total_cost=7600, budget=7000, ledger_total=6500)
+    )
+
+    assert not any(
+        finding.finding_type == FindingType.BUDGET_OVERRUN
+        for finding in result.findings
+    )
+    assert result.evidence_issues == [
+        "cost_total_mismatch:plan_total=7600,ledger_total=6500"
+    ]
+
+
+def test_budget_equal_to_limit_is_not_an_overrun():
+    result = WorkflowOrchestrator().run_sync(
+        review_state(total_cost=7000, budget=7000)
+    )
+
+    assert not any(
+        finding.finding_type == FindingType.BUDGET_OVERRUN
+        for finding in result.findings
+    )
+    assert result.evidence_issues == []
+
+
+def test_missing_cost_breakdown_uses_degraded_plan_total_without_false_mismatch():
+    state = review_state(
+        total_cost=7600,
+        budget=7000,
+        include_cost_breakdown=False,
+    )
+    evidence = PlanEvidenceBuilder().build(state)
+    result = WorkflowOrchestrator().run_sync(state)
+
+    assert evidence.cost_ledger_status == CostLedgerStatus.FALLBACK
+    assert evidence.evidence_issues == ["cost_breakdown_missing_using_plan_total"]
+    assert not any(
+        issue.startswith("cost_total_mismatch") for issue in result.evidence_issues
+    )
+    assert any(
+        finding.finding_type == FindingType.BUDGET_OVERRUN
+        for finding in result.findings
+    )
 
 
 def test_reviewers_return_structured_evidence_and_coverage():

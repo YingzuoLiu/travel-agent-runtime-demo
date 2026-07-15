@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from .models import (
     BudgetReviewContext,
+    CostLedgerStatus,
     EvidenceRef,
     EvidenceSourceType,
     FindingBasis,
@@ -65,7 +66,15 @@ class BudgetChecker:
             )
 
         findings: list[ReviewFinding] = []
-        total = context.candidate_plan.total_cost
+        plan_total = context.candidate_plan.total_cost
+        ledger_is_authoritative = (
+            context.cost_ledger_status == CostLedgerStatus.COMPLETE
+        )
+        total = (
+            sum(item.amount for item in context.cost_ledger)
+            if ledger_is_authoritative
+            else plan_total
+        )
         limit = context.budget_limit
         if total > limit:
             overrun = total - limit
@@ -76,7 +85,7 @@ class BudgetChecker:
                     source_type=EvidenceSourceType.PLAN_ITEM,
                     source_id=context.candidate_plan.plan_item_id,
                     field="total_cost",
-                    observed=total,
+                    observed=plan_total,
                     expected=limit,
                     unit="currency_units",
                 ),
@@ -89,6 +98,17 @@ class BudgetChecker:
                     unit="currency_units",
                 ),
             ]
+            if ledger_is_authoritative:
+                evidence.append(
+                    EvidenceRef(
+                        source_type=EvidenceSourceType.TOOL_RESULT,
+                        source_id="tool_outputs.cost_breakdown",
+                        field="computed_total",
+                        observed=total,
+                        expected=limit,
+                        unit="currency_units",
+                    )
+                )
             evidence.extend(
                 EvidenceRef(
                     source_type=EvidenceSourceType.TOOL_RESULT,

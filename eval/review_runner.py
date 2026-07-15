@@ -60,22 +60,14 @@ def evaluate_review_cases(
             }
         )
 
-    precision_denominator = true_positive + false_positive
-    recall_denominator = true_positive + false_negative
+    passed = sum(result["matched"] for result in results)
     return {
-        "case_count": len(results),
-        "case_accuracy": (
-            sum(result["matched"] for result in results) / len(results)
-            if results
-            else 0.0
-        ),
-        "precision": (
-            true_positive / precision_denominator if precision_denominator else 1.0
-        ),
-        "recall": true_positive / recall_denominator if recall_denominator else 1.0,
-        "true_positive": true_positive,
-        "false_positive": false_positive,
-        "false_negative": false_negative,
+        "fixture_count": len(results),
+        "fixtures_passed": passed,
+        "all_fixtures_passed": passed == len(results),
+        "expected_findings_matched": true_positive,
+        "unexpected_findings": false_positive,
+        "missing_expected_findings": false_negative,
         "results": results,
     }
 

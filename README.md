@@ -274,7 +274,7 @@ The suite covers:
 - state patching and deterministic validation;
 - typed review evidence, context isolation, checked-rule coverage, and finding reduction;
 - reviewer timeout, bounded retry, partial-result, and feature-flag behavior;
-- ten labeled clean/error review fixtures with precision/recall regression checks;
+- ten deterministic clean/error review fixtures with exact expected-finding checks;
 - multi-turn checkpoint continuation;
 - state sharing between synchronous and asynchronous APIs;
 - cancellation before start and after an execution boundary;
