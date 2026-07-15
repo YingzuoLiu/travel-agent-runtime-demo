@@ -1,0 +1,99 @@
+[
+  {
+    "case_id": "clean_baseline",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {},
+    "memory_refs": [],
+    "expected_finding_types": []
+  },
+  {
+    "case_id": "budget_overrun",
+    "budget": 7000,
+    "total_cost": 7600,
+    "preferences": {},
+    "memory_refs": [],
+    "expected_finding_types": ["budget_overrun"]
+  },
+  {
+    "case_id": "explicit_red_eye_violation",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {"avoid_red_eye": true},
+    "memory_refs": [],
+    "expected_finding_types": ["red_eye_preference_violation"]
+  },
+  {
+    "case_id": "explicit_hotel_location_violation",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {"hotel_near_subway": true},
+    "memory_refs": [],
+    "expected_finding_types": ["hotel_location_preference_violation"]
+  },
+  {
+    "case_id": "explicit_style_violation",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {"travel_style": "relaxed"},
+    "memory_refs": [],
+    "expected_finding_types": ["travel_style_preference_violation"]
+  },
+  {
+    "case_id": "compound_hard_and_preference_violations",
+    "budget": 7000,
+    "total_cost": 8200,
+    "preferences": {
+      "avoid_red_eye": true,
+      "hotel_near_subway": true,
+      "travel_style": "relaxed"
+    },
+    "memory_refs": [],
+    "expected_finding_types": [
+      "budget_overrun",
+      "red_eye_preference_violation",
+      "hotel_location_preference_violation",
+      "travel_style_preference_violation"
+    ]
+  },
+  {
+    "case_id": "long_term_red_eye_preference",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {},
+    "memory_refs": [
+      {"memory_id": "memory-red-eye", "key": "avoid_red_eye", "value": true}
+    ],
+    "expected_finding_types": ["memory_preference_violation"]
+  },
+  {
+    "case_id": "long_term_style_preference",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {},
+    "memory_refs": [
+      {"memory_id": "memory-style", "key": "travel_style", "value": "relaxed"}
+    ],
+    "expected_finding_types": ["memory_preference_violation"]
+  },
+  {
+    "case_id": "current_request_overrides_memory",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {"travel_style": "balanced"},
+    "memory_refs": [
+      {"memory_id": "memory-style", "key": "travel_style", "value": "relaxed"}
+    ],
+    "expected_finding_types": []
+  },
+  {
+    "case_id": "irrelevant_memory_does_not_create_finding",
+    "budget": 9000,
+    "total_cost": 7000,
+    "preferences": {},
+    "memory_refs": [
+      {"memory_id": "memory-food", "key": "favorite_food", "value": "ramen"}
+    ],
+    "expected_finding_types": []
+  }
+]

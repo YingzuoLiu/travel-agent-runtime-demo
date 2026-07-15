@@ -56,4 +56,16 @@ def build_default_registry() -> AgentRegistry:
         lambda: TravelAgentRuntime(retry_limit=2),
         description="Rule-based travel planning runtime with typed state and deterministic validation.",
     )
+    registry.register(
+        "travel-agent",
+        "0.5.0",
+        lambda: TravelAgentRuntime(
+            retry_limit=2,
+            enable_review_workflow=True,
+        ),
+        description=(
+            "Evidence-review travel runtime with typed Budget and Preference reviewers, "
+            "deadline-aware orchestration, deterministic reduction and validator-gated replanning."
+        ),
+    )
     return registry
