@@ -1,5 +1,6 @@
 from __future__ import annotations
-import json, sys
+import json
+import sys
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import List
@@ -7,8 +8,8 @@ from typing import List
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent import AgentState, TravelAgentRuntime
-from agent.validator import TravelValidator
+from agent import AgentState, TravelAgentRuntime  # noqa: E402
+from agent.validator import TravelValidator  # noqa: E402
 
 @dataclass
 class Scenario:

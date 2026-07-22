@@ -4,11 +4,12 @@ from the eval scenarios by running them through the runtime and recording
 what each turn's ground-truth intent should have been.
 """
 from __future__ import annotations
-import sys, json
+import sys
+import json
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agent import AgentState, TravelAgentRuntime
+from agent import AgentState
 from rl.reward import reward_for_intent, INTENT_LABELS
 
 # Hand-labelled ground-truth intents for each scenario turn
@@ -74,7 +75,6 @@ def build_prompt(history: list[str], user_message: str) -> str:
 
 def generate_episodes() -> list[dict]:
     """Run all scenarios and collect (prompt, label, reward) episodes."""
-    runtime = TravelAgentRuntime(retry_limit=2)
     episodes = []
 
     for scenario in LABELLED_SCENARIOS:

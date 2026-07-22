@@ -5,19 +5,19 @@ Uses Qwen2.5-0.5B-Instruct as the base policy.
 Reward signal comes from the eval harness (rl/reward.py).
 """
 from __future__ import annotations
-import sys, json, re
+import sys
+import json
 from pathlib import Path
 
-import torch
-from transformers import AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
+from datasets import Dataset
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent import AgentState
-from rl.reward import reward_for_intent, INTENT_LABELS
-from rl.episodes import LABELLED_SCENARIOS, build_prompt
+from agent import AgentState  # noqa: E402
+from rl.reward import reward_for_intent, INTENT_LABELS  # noqa: E402
+from rl.episodes import LABELLED_SCENARIOS, build_prompt  # noqa: E402
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
 print("Building dataset...")
@@ -35,7 +35,6 @@ for scenario in LABELLED_SCENARIOS:
 print(f"Dataset size: {len(records)} episodes")
 
 # TRL GRPOTrainer expects a datasets.Dataset
-from datasets import Dataset
 dataset = Dataset.from_list([{"prompt": r["prompt"]} for r in records])
 
 # Keep a lookup so reward_fn can find user_msg by prompt
