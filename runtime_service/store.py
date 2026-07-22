@@ -158,39 +158,88 @@ class SQLiteRunStore:
             raise KeyError(f"Run not found: {run_id}")
         return self._row_to_run(row)
 
-    def complete_run_if_not_cancelled(self, run: RunRecord) -> bool:
-        run.updated_at = utc_now()
+    def finalize_completed_run(self, run: RunRecord) -> bool:
+        """Atomically transition a RUNNING run to COMPLETED with its checkpoint.
+
+        The eligibility check and the COMPLETED transition are the same
+        statement: a single conditional `UPDATE ... WHERE run_id = ? AND
+        status = 'running' AND cancel_requested = 0` acts as a compare-and-set.
+        There is no separate read-then-decide step, so a concurrent cancel
+        (which only ever sets `cancel_requested = 1` on non-terminal rows,
+        see `request_cancel`) and a concurrent/duplicate finalize attempt
+        cannot both believe they won.
+
+        If the UPDATE does not affect exactly one row -- the run was already
+        finalized, or a cancel committed first, or it is not currently
+        RUNNING for any other reason -- nothing else in this method runs: no
+        thread checkpoint, no `checkpoint.saved` event, no `run.completed`
+        event. The caller must re-read the run and follow whatever terminal
+        branch actually applies (typically cancellation).
+
+        If the UPDATE succeeds, the thread-state checkpoint UPSERT and both
+        describing events are written using the *same* connection/transaction
+        as the UPDATE, so a reader can never observe `status == "completed"`
+        without the checkpoint and `run.completed` event already committed
+        alongside it, and calling this a second time for the same run is a
+        no-op (the second UPDATE affects zero rows because status is no
+        longer RUNNING).
+        """
+        completed_at = utc_now()
+        state_json = run.state.model_dump_json() if run.state is not None else None
+        validation_errors_json = json.dumps(run.validation_errors)
+
         with self._lock, self._connect() as connection:
             cursor = connection.execute(
                 """
                 UPDATE runs SET
-                    thread_id = ?, agent_id = ?, agent_version = ?, status = ?,
-                    input_message = ?, state_json = ?, output_message = ?,
-                    validation_errors_json = ?, error = ?, attempt = ?,
-                    client_request_id = ?, created_at = ?, updated_at = ?,
-                    started_at = ?, completed_at = ?
-                WHERE run_id = ? AND cancel_requested = 0
+                    status = ?, state_json = ?, output_message = ?,
+                    validation_errors_json = ?, completed_at = ?, updated_at = ?
+                WHERE run_id = ? AND status = ? AND cancel_requested = 0
                 """,
                 (
-                    run.thread_id,
-                    run.agent_id,
-                    run.agent_version,
-                    run.status.value,
-                    run.input_message,
-                    run.state.model_dump_json() if run.state else None,
+                    RunStatus.COMPLETED.value,
+                    state_json,
                     run.output_message,
-                    json.dumps(run.validation_errors),
-                    run.error,
-                    run.attempt,
-                    run.client_request_id,
-                    run.created_at,
-                    run.updated_at,
-                    run.started_at,
-                    run.completed_at,
+                    validation_errors_json,
+                    completed_at,
+                    completed_at,
                     run.run_id,
+                    RunStatus.RUNNING.value,
                 ),
             )
-        return cursor.rowcount == 1
+            if cursor.rowcount != 1:
+                return False
+
+            if run.state is not None:
+                connection.execute(
+                    """
+                    INSERT INTO thread_states (thread_id, state_json, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(thread_id) DO UPDATE SET
+                        state_json = excluded.state_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (run.thread_id, state_json, completed_at),
+                )
+
+            trace_events = len(run.state.execution_trace) if run.state is not None else 0
+            self._append_event_with_connection(
+                connection,
+                run.run_id,
+                "checkpoint.saved",
+                {"thread_id": run.thread_id, "trace_events": trace_events},
+            )
+            self._append_event_with_connection(
+                connection,
+                run.run_id,
+                "run.completed",
+                {"validation_errors": run.validation_errors},
+            )
+
+        run.status = RunStatus.COMPLETED
+        run.completed_at = completed_at
+        run.updated_at = completed_at
+        return True
 
     def list_recoverable_runs(self) -> list[RunRecord]:
         with self._connect() as connection:
@@ -207,33 +256,51 @@ class SQLiteRunStore:
         payload: dict[str, Any] | None = None,
     ) -> RunEvent:
         with self._lock, self._connect() as connection:
-            sequence = int(
-                connection.execute(
-                    "SELECT COALESCE(MAX(sequence), 0) + 1 FROM run_events WHERE run_id = ?",
-                    (run_id,),
-                ).fetchone()[0]
-            )
-            event = RunEvent(
-                run_id=run_id,
-                sequence=sequence,
-                event_type=event_type,
-                payload=payload or {},
-            )
-            cursor = connection.execute(
-                """
-                INSERT INTO run_events (
-                    run_id, sequence, event_type, payload_json, created_at
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    event.run_id,
-                    event.sequence,
-                    event.event_type,
-                    json.dumps(event.payload),
-                    event.created_at,
-                ),
-            )
-            event.event_id = int(cursor.lastrowid)
+            return self._append_event_with_connection(connection, run_id, event_type, payload)
+
+    @staticmethod
+    def _append_event_with_connection(
+        connection: sqlite3.Connection,
+        run_id: str,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+    ) -> RunEvent:
+        """Append an event using a connection the caller already owns.
+
+        Callers that need the event insert to participate in a larger
+        transaction (see `finalize_completed_run`) pass their own open
+        connection instead of going through `append_event`, which opens and
+        commits its own connection. The sequence computation and the insert
+        always share one connection, whether that connection is scoped here
+        or by the caller.
+        """
+        sequence = int(
+            connection.execute(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM run_events WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()[0]
+        )
+        event = RunEvent(
+            run_id=run_id,
+            sequence=sequence,
+            event_type=event_type,
+            payload=payload or {},
+        )
+        cursor = connection.execute(
+            """
+            INSERT INTO run_events (
+                run_id, sequence, event_type, payload_json, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                event.run_id,
+                event.sequence,
+                event.event_type,
+                json.dumps(event.payload),
+                event.created_at,
+            ),
+        )
+        event.event_id = int(cursor.lastrowid)
         return event
 
     def list_events(self, run_id: str, *, after_sequence: int = 0) -> list[RunEvent]:

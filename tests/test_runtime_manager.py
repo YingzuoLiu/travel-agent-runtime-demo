@@ -101,6 +101,12 @@ def test_cancelled_after_execution_boundary(tmp_path):
         assert store.load_thread_state("cancel-running") is None
         reasons = [event.payload.get("reason") for event in store.list_events(submitted.run_id) if event.event_type == "run.cancelled"]
         assert reasons == ["cancelled_after_execution_boundary"]
+        # A cancel that commits before finalize_completed_run's compare-and-set
+        # UPDATE must win: no checkpoint or completion event may appear, even
+        # though the runtime step itself ran to completion.
+        event_types = [event.event_type for event in store.list_events(submitted.run_id)]
+        assert "checkpoint.saved" not in event_types
+        assert "run.completed" not in event_types
     finally:
         release.set()
         manager.stop()
@@ -116,13 +122,96 @@ def test_running_run_is_recovered_after_restart(tmp_path):
     manager.start()
     try:
         result = wait_for_terminal(manager, run.run_id)
+        # No extra wait beyond wait_for_terminal's own polling: the moment
+        # `result.status` is observed as terminal, the checkpoint and its
+        # describing events must already be committed alongside it.
         assert result.status == RunStatus.COMPLETED
         assert result.attempt == 2
         events = [event.event_type for event in manager.store.list_events(run.run_id)]
         assert "run.recovered" in events
+        assert "checkpoint.saved" in events
+        assert events[-2] == "checkpoint.saved"
         assert events[-1] == "run.completed"
+        assert manager.store.load_thread_state("recovery-thread") is not None
     finally:
         manager.stop()
+
+
+def test_finalize_completed_run_is_idempotent_on_duplicate_call(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_finalize_test",
+        thread_id="finalize-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.RUNNING,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+        attempt=1,
+    )
+    store.create_run(run)
+    run.state = AgentState(thread_id="finalize-thread", destination="Tokyo", days=5, budget=9000)
+    run.output_message = "Planned."
+    run.validation_errors = []
+
+    first = store.finalize_completed_run(run)
+    assert first is True
+    assert run.status == RunStatus.COMPLETED
+
+    events_after_first = store.list_events(run.run_id)
+    event_types_after_first = [event.event_type for event in events_after_first]
+    assert event_types_after_first.count("checkpoint.saved") == 1
+    assert event_types_after_first.count("run.completed") == 1
+
+    second = store.finalize_completed_run(run)
+
+    assert second is False
+    # A duplicate call must not write any new checkpoint or event: the
+    # conditional UPDATE affects zero rows because status is no longer
+    # RUNNING, so nothing past it in the method body ever runs.
+    events_after_second = store.list_events(run.run_id)
+    assert events_after_second == events_after_first
+
+    persisted = store.get_run(run.run_id)
+    assert persisted is not None
+    assert persisted.status == RunStatus.COMPLETED
+
+
+def test_finalize_completed_run_rejects_when_cancel_requested_first(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_cancel_race_test",
+        thread_id="cancel-race-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.RUNNING,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+        attempt=1,
+    )
+    store.create_run(run)
+
+    # Simulate a cancel committing to the database first, in the window
+    # between a worker starting execution and it finishing.
+    cancelled = store.request_cancel(run.run_id)
+    assert cancelled.cancel_requested is True
+    assert cancelled.status == RunStatus.RUNNING
+
+    run.state = AgentState(thread_id="cancel-race-thread", destination="Tokyo", days=5, budget=9000)
+    run.output_message = "Planned."
+    run.validation_errors = []
+
+    result = store.finalize_completed_run(run)
+
+    assert result is False
+    persisted = store.get_run(run.run_id)
+    assert persisted is not None
+    # RuntimeManager -- not finalize_completed_run -- owns the transition to
+    # CANCELLED once this returns False; the row is left RUNNING here.
+    assert persisted.status == RunStatus.RUNNING
+    assert persisted.state is None
+    assert store.load_thread_state("cancel-race-thread") is None
+    events = [event.event_type for event in store.list_events(run.run_id)]
+    assert "checkpoint.saved" not in events
+    assert "run.completed" not in events
 
 
 def test_two_workers_complete_independent_runs(tmp_path):

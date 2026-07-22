@@ -68,14 +68,23 @@ def test_async_run_api_and_event_history(tmp_path):
         assert response.status_code == 202
         run_id = response.json()["run_id"]
         body = wait_for_run(client, run_id)
+        # The moment an external reader observes COMPLETED, the checkpoint
+        # and describing events must already be committed alongside it --
+        # this is the atomicity guarantee `finalize_completed_run` provides.
+        # No extra wait/sleep here: the assertions run immediately after the
+        # first observation of the terminal status.
         assert body["status"] == "completed"
         assert body["agent_version"] == "0.3.0"
         events = client.get(f"/runs/{run_id}/events").json()
-        assert events[0]["event_type"] == "run.queued"
-        assert events[-1]["event_type"] == "run.completed"
+        event_types = [event["event_type"] for event in events]
+        assert event_types[0] == "run.queued"
+        assert "checkpoint.saved" in event_types
+        assert event_types[-2] == "checkpoint.saved"
+        assert event_types[-1] == "run.completed"
         state = client.get("/threads/api-run-thread/state")
         assert state.status_code == 200
         assert state.json()["destination"] == "Tokyo"
+        assert state.json()["budget"] == body["state"]["budget"]
 
 
 def test_async_run_can_opt_into_evidence_review_agent_version(tmp_path):

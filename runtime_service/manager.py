@@ -143,16 +143,11 @@ class RuntimeManager:
             run.state = result.state
             run.output_message = result.message
             run.validation_errors = result.validation_errors
-            run.status = RunStatus.COMPLETED
-            run.completed_at = utc_now()
-            if not self.store.complete_run_if_not_cancelled(run):
+            if not self.store.finalize_completed_run(run):
                 latest = self._require_run(run_id)
                 latest.state = result.state
                 self._mark_cancelled(latest, reason="cancelled_after_execution_boundary")
                 return
-            self.store.save_thread_state(result.state)
-            self.store.append_event(run.run_id, "checkpoint.saved", {"thread_id": run.thread_id, "trace_events": len(result.state.execution_trace)})
-            self.store.append_event(run.run_id, "run.completed", {"validation_errors": result.validation_errors})
         except Exception as exc:  # pragma: no cover
             run = self._require_run(run_id)
             if run.cancel_requested:
