@@ -226,9 +226,35 @@ def test_workflow_keeps_completed_results_when_one_reviewer_times_out():
     ]
 
 
+class BlockingPreferenceReviewer:
+    """A controllable stand-in for a slow reviewer, driven by events instead
+    of a wall-clock sleep duration.
+
+    It signals `started` the instant it begins running -- proving the task
+    is genuinely in flight, not merely scheduled -- then suspends on
+    `release`, which the test deliberately never sets. The only way this
+    reviewer's task can resolve is by being cancelled, so a test built on
+    it does not depend on any particular sleep duration racing against
+    scheduler jitter.
+    """
+
+    role = ReviewerRole.PREFERENCE
+
+    def __init__(self, started: asyncio.Event, release: asyncio.Event):
+        self.started = started
+        self.release = release
+
+    async def run(self, context):
+        self.started.set()
+        await self.release.wait()
+        return ReviewerReport(reviewer=self.role, task_id=context.task_id)  # pragma: no cover
+
+
 def test_workflow_cancellation_preserves_completed_findings_without_replan_directives():
+    started = asyncio.Event()
+    release = asyncio.Event()
     orchestrator = WorkflowOrchestrator(
-        reviewers=[BudgetChecker(), SlowPreferenceReviewer()],
+        reviewers=[BudgetChecker(), BlockingPreferenceReviewer(started, release)],
         config=ReviewWorkflowConfig(
             max_concurrency=2,
             workflow_timeout_seconds=1.0,
@@ -237,16 +263,27 @@ def test_workflow_cancellation_preserves_completed_findings_without_replan_direc
         ),
     )
 
-    async def cancel_after_budget_finishes():
+    async def cancel_once_preference_reviewer_is_blocked():
         task = asyncio.create_task(orchestrator.run(review_state()))
-        await asyncio.sleep(0.01)
+        # Deterministically wait for the slow reviewer to actually start
+        # running -- not for a guessed sleep duration to probably have
+        # elapsed relative to however fast this machine's event loop
+        # happens to schedule things.
+        await asyncio.wait_for(started.wait(), timeout=5.0)
+        # `release` is deliberately never set: the preference reviewer is
+        # provably still blocked here, so cancelling now can only resolve
+        # it through cancellation, never through natural completion.
         task.cancel()
         return await task
 
-    result = asyncio.run(cancel_after_budget_finishes())
+    result = asyncio.run(cancel_once_preference_reviewer_is_blocked())
 
     assert result.status == WorkflowStatus.CANCELLED
     statuses = {task.reviewer: task.status for task in result.tasks}
+    # Budget has no internal await point, so by the time the blocking
+    # reviewer has signalled `started`, budget has already run to
+    # completion on its own -- this assertion is the authoritative proof,
+    # not an assumption.
     assert statuses[ReviewerRole.BUDGET] == TaskStatus.COMPLETED
     assert statuses[ReviewerRole.PREFERENCE] == TaskStatus.CANCELLED
     assert [finding.finding_type for finding in result.findings] == [
