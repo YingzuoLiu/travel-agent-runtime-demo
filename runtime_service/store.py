@@ -6,7 +6,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from agent.state import AgentState, utc_now
+from agent.contracts import utc_now
+from agent.state import AgentState
 from .models import RunEvent, RunRecord, RunStatus
 
 

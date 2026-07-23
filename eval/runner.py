@@ -8,7 +8,8 @@ from typing import List
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent import AgentState, TravelAgentRuntime  # noqa: E402
+from agent import AgentState  # noqa: E402
+from agent.runtime import TravelAgentRuntime  # noqa: E402
 from agent.validator import TravelValidator  # noqa: E402
 
 @dataclass

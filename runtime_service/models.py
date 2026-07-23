@@ -5,7 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from agent.state import AgentState, utc_now
+from agent.contracts import utc_now
+from agent.state import AgentState
 
 
 class RunStatus(str, Enum):

@@ -1,7 +1,8 @@
 import threading
 import time
 
-from agent.runtime import RuntimeResponse, TravelAgentRuntime
+from agent.contracts import RuntimeResponse
+from agent.runtime import TravelAgentRuntime
 from agent.state import AgentState
 from runtime_service import (
     AgentRegistry,
@@ -30,7 +31,7 @@ class BlockingRuntime(TravelAgentRuntime):
         self.started = started
         self.release = release
 
-    def handle_user_message(self, state: AgentState, user_message: str) -> RuntimeResponse:
+    def handle_user_message(self, state: AgentState, user_message: str) -> RuntimeResponse[AgentState]:
         self.started.set()
         if not self.release.wait(timeout=10):
             raise TimeoutError("test release event was not set")

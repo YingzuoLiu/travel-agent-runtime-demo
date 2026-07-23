@@ -6,7 +6,8 @@ import threading
 import traceback
 from uuid import uuid4
 
-from agent.state import AgentState, utc_now
+from agent.contracts import utc_now
+from agent.state import AgentState
 from .models import RunCreateRequest, RunRecord, RunStatus
 from .registry import AgentRegistry
 from .store import SQLiteRunStore

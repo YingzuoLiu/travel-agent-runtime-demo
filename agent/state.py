@@ -1,22 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .contracts import BaseRuntimeState
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-class TraceEvent(BaseModel):
-    """A small execution log entry for observability and debugging."""
-
-    event: str
-    reason: str
-    payload: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: str = Field(default_factory=utc_now)
+# `TraceEvent` and `utc_now` moved to `agent/contracts.py`: they are fully
+# domain-agnostic (an event/reason/payload/timestamp log entry has nothing
+# Travel-specific about it) and `BaseRuntimeState.execution_trace` needs
+# `TraceEvent` as its field type. Keeping them here would force
+# `agent/contracts.py` to import from `agent/state.py` for `TraceEvent`
+# while `agent/state.py` imports `BaseRuntimeState` from
+# `agent/contracts.py` -- a circular import. Every direct importer of
+# `TraceEvent`/`utc_now` from this module has been repointed to
+# `agent.contracts`; nothing is re-exported from here.
 
 
 class TravelPlan(BaseModel):
@@ -31,15 +29,19 @@ class TravelPlan(BaseModel):
     notes: List[str] = Field(default_factory=list)
 
 
-class AgentState(BaseModel):
+class AgentState(BaseRuntimeState):
     """
     Typed task state for a multi-turn travel planning agent.
 
-    In production, this state could be persisted in Redis or a database.
-    This demo keeps it in memory so the repository can run without external services.
+    Extends the domain-agnostic `BaseRuntimeState` (`thread_id`,
+    `execution_trace`) with Travel-specific fields. In production, this
+    state could be persisted in Redis or a database. This demo keeps it
+    in memory so the repository can run without external services.
     """
 
-    thread_id: str
+    domain_id: ClassVar[str] = "travel"
+    schema_version: ClassVar[str] = "1"
+
     destination: Optional[str] = None
     days: Optional[int] = None
     budget: Optional[int] = None
@@ -51,7 +53,6 @@ class AgentState(BaseModel):
     blockers: List[str] = Field(default_factory=list)
     retry_count: int = 0
     current_stage: str = "initialized"
-    execution_trace: List[TraceEvent] = Field(default_factory=list)
 
 
 class StatePatch(BaseModel):
