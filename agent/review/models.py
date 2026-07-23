@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from agent.state import utc_now
+from agent.contracts import utc_now
 
 
 class ReviewerRole(str, Enum):

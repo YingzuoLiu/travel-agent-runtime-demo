@@ -1,0 +1,1592 @@
+[
+  {
+    "case_id": "clean_baseline",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.long_term_memory_alignment",
+                "reason": "No relevant long-term memory was loaded for this workflow.",
+                "required": false,
+                "missing_evidence": [
+                  "relevant_memory"
+                ]
+              },
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [],
+      "directives": [],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "budget_overrun",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#1>",
+                "reviewer": "budget",
+                "rule_id": "budget.total_cost_within_limit",
+                "finding_type": "budget_overrun",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "high",
+                "summary": "Candidate plan exceeds the budget by 600 currency units.",
+                "evidence": [
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "total_cost",
+                    "observed": 7600.0,
+                    "expected": 7000.0,
+                    "unit": "currency_units",
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.budget",
+                    "field": "budget_limit",
+                    "observed": 7000.0,
+                    "expected": "total_cost <= 7000.0",
+                    "unit": "currency_units",
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "tool_result",
+                    "source_id": "itinerary",
+                    "field": "plan-total",
+                    "observed": 7600.0,
+                    "expected": null,
+                    "unit": "currency_units",
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.long_term_memory_alignment",
+                "reason": "No relevant long-term memory was loaded for this workflow.",
+                "required": false,
+                "missing_evidence": [
+                  "relevant_memory"
+                ]
+              },
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "rule_id": "budget.total_cost_within_limit",
+          "finding_type": "budget_overrun",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "high",
+          "summary": "Candidate plan exceeds the budget by 600 currency units.",
+          "evidence": [
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "total_cost",
+              "observed": 7600.0,
+              "expected": 7000.0,
+              "unit": "currency_units",
+              "tool_call_id": null
+            },
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.budget",
+              "field": "budget_limit",
+              "observed": 7000.0,
+              "expected": "total_cost <= 7000.0",
+              "unit": "currency_units",
+              "tool_call_id": null
+            },
+            {
+              "source_type": "tool_result",
+              "source_id": "itinerary",
+              "field": "plan-total",
+              "observed": 7600.0,
+              "expected": null,
+              "unit": "currency_units",
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "reduce_cost",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate plan exceeds the budget by 600 currency units."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "explicit_red_eye_violation",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.long_term_memory_alignment",
+                "reason": "No relevant long-term memory was loaded for this workflow.",
+                "required": false,
+                "missing_evidence": [
+                  "relevant_memory"
+                ]
+              },
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.avoid_red_eye",
+                "finding_type": "red_eye_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "high",
+                "summary": "Candidate plan uses a red-eye flight despite the explicit preference.",
+                "evidence": [
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.preferences",
+                    "field": "avoid_red_eye",
+                    "observed": true,
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "flight_type",
+                    "observed": "red_eye",
+                    "expected": true,
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.avoid_red_eye",
+          "finding_type": "red_eye_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "high",
+          "summary": "Candidate plan uses a red-eye flight despite the explicit preference.",
+          "evidence": [
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.preferences",
+              "field": "avoid_red_eye",
+              "observed": true,
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "flight_type",
+              "observed": "red_eye",
+              "expected": true,
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "change_flight",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate plan uses a red-eye flight despite the explicit preference."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "explicit_hotel_location_violation",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.long_term_memory_alignment",
+                "reason": "No relevant long-term memory was loaded for this workflow.",
+                "required": false,
+                "missing_evidence": [
+                  "relevant_memory"
+                ]
+              },
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.hotel_near_subway",
+                "finding_type": "hotel_location_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "medium",
+                "summary": "Candidate hotel does not satisfy the near-subway preference.",
+                "evidence": [
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.preferences",
+                    "field": "hotel_near_subway",
+                    "observed": true,
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "hotel_tier",
+                    "observed": "standard hotel",
+                    "expected": true,
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.hotel_near_subway",
+          "finding_type": "hotel_location_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "medium",
+          "summary": "Candidate hotel does not satisfy the near-subway preference.",
+          "evidence": [
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.preferences",
+              "field": "hotel_near_subway",
+              "observed": true,
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "hotel_tier",
+              "observed": "standard hotel",
+              "expected": true,
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "change_accommodation",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate hotel does not satisfy the near-subway preference."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "explicit_style_violation",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.long_term_memory_alignment",
+                "reason": "No relevant long-term memory was loaded for this workflow.",
+                "required": false,
+                "missing_evidence": [
+                  "relevant_memory"
+                ]
+              },
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.travel_style",
+                "finding_type": "travel_style_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "medium",
+                "summary": "Candidate itinerary style conflicts with the explicit travel style.",
+                "evidence": [
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.preferences",
+                    "field": "travel_style",
+                    "observed": "relaxed",
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "poi_style",
+                    "observed": "balanced itinerary",
+                    "expected": "relaxed",
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.travel_style",
+          "finding_type": "travel_style_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "medium",
+          "summary": "Candidate itinerary style conflicts with the explicit travel style.",
+          "evidence": [
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.preferences",
+              "field": "travel_style",
+              "observed": "relaxed",
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "poi_style",
+              "observed": "balanced itinerary",
+              "expected": "relaxed",
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "adjust_itinerary_style",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate itinerary style conflicts with the explicit travel style."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "compound_hard_and_preference_violations",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#1>",
+                "reviewer": "budget",
+                "rule_id": "budget.total_cost_within_limit",
+                "finding_type": "budget_overrun",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "high",
+                "summary": "Candidate plan exceeds the budget by 1200 currency units.",
+                "evidence": [
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "total_cost",
+                    "observed": 8200.0,
+                    "expected": 7000.0,
+                    "unit": "currency_units",
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.budget",
+                    "field": "budget_limit",
+                    "observed": 7000.0,
+                    "expected": "total_cost <= 7000.0",
+                    "unit": "currency_units",
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "tool_result",
+                    "source_id": "itinerary",
+                    "field": "plan-total",
+                    "observed": 8200.0,
+                    "expected": null,
+                    "unit": "currency_units",
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.long_term_memory_alignment",
+                "reason": "No relevant long-term memory was loaded for this workflow.",
+                "required": false,
+                "missing_evidence": [
+                  "relevant_memory"
+                ]
+              },
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#2>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.avoid_red_eye",
+                "finding_type": "red_eye_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "high",
+                "summary": "Candidate plan uses a red-eye flight despite the explicit preference.",
+                "evidence": [
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.preferences",
+                    "field": "avoid_red_eye",
+                    "observed": true,
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "flight_type",
+                    "observed": "red_eye",
+                    "expected": true,
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              },
+              {
+                "finding_id": "<FINDING_ID#3>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.hotel_near_subway",
+                "finding_type": "hotel_location_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "medium",
+                "summary": "Candidate hotel does not satisfy the near-subway preference.",
+                "evidence": [
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.preferences",
+                    "field": "hotel_near_subway",
+                    "observed": true,
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "hotel_tier",
+                    "observed": "standard hotel",
+                    "expected": true,
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              },
+              {
+                "finding_id": "<FINDING_ID#4>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.travel_style",
+                "finding_type": "travel_style_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "medium",
+                "summary": "Candidate itinerary style conflicts with the explicit travel style.",
+                "evidence": [
+                  {
+                    "source_type": "constraint",
+                    "source_id": "agent_state.preferences",
+                    "field": "travel_style",
+                    "observed": "relaxed",
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "poi_style",
+                    "observed": "balanced itinerary",
+                    "expected": "relaxed",
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "rule_id": "budget.total_cost_within_limit",
+          "finding_type": "budget_overrun",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "high",
+          "summary": "Candidate plan exceeds the budget by 1200 currency units.",
+          "evidence": [
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "total_cost",
+              "observed": 8200.0,
+              "expected": 7000.0,
+              "unit": "currency_units",
+              "tool_call_id": null
+            },
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.budget",
+              "field": "budget_limit",
+              "observed": 7000.0,
+              "expected": "total_cost <= 7000.0",
+              "unit": "currency_units",
+              "tool_call_id": null
+            },
+            {
+              "source_type": "tool_result",
+              "source_id": "itinerary",
+              "field": "plan-total",
+              "observed": 8200.0,
+              "expected": null,
+              "unit": "currency_units",
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        },
+        {
+          "finding_id": "<FINDING_ID#2>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.avoid_red_eye",
+          "finding_type": "red_eye_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "high",
+          "summary": "Candidate plan uses a red-eye flight despite the explicit preference.",
+          "evidence": [
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.preferences",
+              "field": "avoid_red_eye",
+              "observed": true,
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "flight_type",
+              "observed": "red_eye",
+              "expected": true,
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        },
+        {
+          "finding_id": "<FINDING_ID#3>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.hotel_near_subway",
+          "finding_type": "hotel_location_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "medium",
+          "summary": "Candidate hotel does not satisfy the near-subway preference.",
+          "evidence": [
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.preferences",
+              "field": "hotel_near_subway",
+              "observed": true,
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "hotel_tier",
+              "observed": "standard hotel",
+              "expected": true,
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        },
+        {
+          "finding_id": "<FINDING_ID#4>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.travel_style",
+          "finding_type": "travel_style_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "medium",
+          "summary": "Candidate itinerary style conflicts with the explicit travel style.",
+          "evidence": [
+            {
+              "source_type": "constraint",
+              "source_id": "agent_state.preferences",
+              "field": "travel_style",
+              "observed": "relaxed",
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "poi_style",
+              "observed": "balanced itinerary",
+              "expected": "relaxed",
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "adjust_itinerary_style",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#4>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate itinerary style conflicts with the explicit travel style."
+        },
+        {
+          "directive_id": "<DIRECTIVE_ID#2>",
+          "action_type": "change_accommodation",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#3>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate hotel does not satisfy the near-subway preference."
+        },
+        {
+          "directive_id": "<DIRECTIVE_ID#3>",
+          "action_type": "change_flight",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#2>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate plan uses a red-eye flight despite the explicit preference."
+        },
+        {
+          "directive_id": "<DIRECTIVE_ID#4>",
+          "action_type": "reduce_cost",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate plan exceeds the budget by 1200 currency units."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "long_term_red_eye_preference",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style",
+              "preference.long_term_memory_alignment"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.long_term_memory_alignment",
+                "finding_type": "memory_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "low",
+                "summary": "Candidate plan does not use the relevant long-term preference 'avoid_red_eye'.",
+                "evidence": [
+                  {
+                    "source_type": "memory",
+                    "source_id": "memory-red-eye",
+                    "field": "avoid_red_eye",
+                    "observed": true,
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "flight_type",
+                    "observed": "red_eye",
+                    "expected": true,
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.long_term_memory_alignment",
+          "finding_type": "memory_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "low",
+          "summary": "Candidate plan does not use the relevant long-term preference 'avoid_red_eye'.",
+          "evidence": [
+            {
+              "source_type": "memory",
+              "source_id": "memory-red-eye",
+              "field": "avoid_red_eye",
+              "observed": true,
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "flight_type",
+              "observed": "red_eye",
+              "expected": true,
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "adjust_itinerary_style",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate plan does not use the relevant long-term preference 'avoid_red_eye'."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "long_term_style_preference",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style",
+              "preference.long_term_memory_alignment"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": [
+              {
+                "finding_id": "<FINDING_ID#1>",
+                "task_id": "<REVIEW_TASK_ID#2>",
+                "reviewer": "preference",
+                "rule_id": "preference.long_term_memory_alignment",
+                "finding_type": "memory_preference_violation",
+                "basis": "deterministic",
+                "verdict": "confirmed",
+                "severity": "low",
+                "summary": "Candidate plan does not use the relevant long-term preference 'travel_style'.",
+                "evidence": [
+                  {
+                    "source_type": "memory",
+                    "source_id": "memory-style",
+                    "field": "travel_style",
+                    "observed": "relaxed",
+                    "expected": null,
+                    "unit": null,
+                    "tool_call_id": null
+                  },
+                  {
+                    "source_type": "plan_item",
+                    "source_id": "itinerary",
+                    "field": "poi_style",
+                    "observed": "balanced itinerary",
+                    "expected": "relaxed",
+                    "unit": null,
+                    "tool_call_id": null
+                  }
+                ],
+                "affected_plan_item_ids": [
+                  "itinerary"
+                ]
+              }
+            ]
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [
+        {
+          "finding_id": "<FINDING_ID#1>",
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "rule_id": "preference.long_term_memory_alignment",
+          "finding_type": "memory_preference_violation",
+          "basis": "deterministic",
+          "verdict": "confirmed",
+          "severity": "low",
+          "summary": "Candidate plan does not use the relevant long-term preference 'travel_style'.",
+          "evidence": [
+            {
+              "source_type": "memory",
+              "source_id": "memory-style",
+              "field": "travel_style",
+              "observed": "relaxed",
+              "expected": null,
+              "unit": null,
+              "tool_call_id": null
+            },
+            {
+              "source_type": "plan_item",
+              "source_id": "itinerary",
+              "field": "poi_style",
+              "observed": "balanced itinerary",
+              "expected": "relaxed",
+              "unit": null,
+              "tool_call_id": null
+            }
+          ],
+          "affected_plan_item_ids": [
+            "itinerary"
+          ]
+        }
+      ],
+      "directives": [
+        {
+          "directive_id": "<DIRECTIVE_ID#1>",
+          "action_type": "adjust_itinerary_style",
+          "target_item_ids": [
+            "itinerary"
+          ],
+          "finding_ids": [
+            "<FINDING_ID#1>"
+          ],
+          "preserve_item_ids": [],
+          "reason": "Candidate plan does not use the relevant long-term preference 'travel_style'."
+        }
+      ],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "current_request_overrides_memory",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style",
+              "preference.long_term_memory_alignment"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [],
+      "directives": [],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  },
+  {
+    "case_id": "irrelevant_memory_does_not_create_finding",
+    "workflow": {
+      "workflow_run_id": "<WORKFLOW_ID#1>",
+      "status": "completed",
+      "tasks": [
+        {
+          "task_id": "<REVIEW_TASK_ID#1>",
+          "reviewer": "budget",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "budget",
+            "task_id": "<REVIEW_TASK_ID#1>",
+            "checked_rule_ids": [
+              "budget.total_cost_within_limit"
+            ],
+            "skipped_checks": [],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        },
+        {
+          "task_id": "<REVIEW_TASK_ID#2>",
+          "reviewer": "preference",
+          "status": "completed",
+          "attempts": 1,
+          "output": {
+            "reviewer": "preference",
+            "task_id": "<REVIEW_TASK_ID#2>",
+            "checked_rule_ids": [
+              "preference.avoid_red_eye",
+              "preference.hotel_near_subway",
+              "preference.travel_style",
+              "preference.long_term_memory_alignment"
+            ],
+            "skipped_checks": [
+              {
+                "rule_id": "preference.semantic_alignment",
+                "reason": "No semantic preference analyzer is configured.",
+                "required": false,
+                "missing_evidence": [
+                  "semantic_analyzer"
+                ]
+              }
+            ],
+            "findings": []
+          },
+          "error_code": null,
+          "error_message": null,
+          "started_at": "<TIMESTAMP>",
+          "finished_at": "<TIMESTAMP>",
+          "duration_ms": "<DURATION_MS>"
+        }
+      ],
+      "evidence_issues": [
+        "cost_breakdown_missing_using_plan_total"
+      ],
+      "findings": [],
+      "directives": [],
+      "started_at": "<TIMESTAMP>",
+      "finished_at": "<TIMESTAMP>",
+      "duration_ms": "<DURATION_MS>"
+    }
+  }
+]

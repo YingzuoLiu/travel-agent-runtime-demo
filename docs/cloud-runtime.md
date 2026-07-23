@@ -68,6 +68,46 @@ Cancellation remains cooperative because an in-process Agent step cannot be forc
 
 This closes the boundary race where a stale `RunRecord` could overwrite a cancel request.
 
+## Known consistency gaps
+
+`finalize_completed_run`, `finalize_cancelled_run`, and `request_cancel_atomically` close the
+consistency gap between a run's terminal/cancel-requested status and the event that describes
+it: the status write and its describing event commit in a single transaction, so an external
+reader can never observe the new status without the event already being visible.
+
+A repository-wide audit for the same shape of gap found four more places that still use two
+separate commits -- an `update_run` (or `create_run`) followed by a separate `append_event` --
+instead of one transaction:
+
+- `RuntimeManager.submit()`: `SQLiteRunStore.create_run` and the `run.queued` event;
+- `RuntimeManager._execute_run()`'s QUEUED -> RUNNING transition: `update_run` and the
+  `run.started` event;
+- `RuntimeManager._execute_run()`'s RUNNING -> FAILED path: `update_run` and the `run.failed`
+  event;
+- `RuntimeManager.start()`'s restart recovery, RUNNING -> QUEUED: `update_run` and the
+  `run.recovered` event.
+
+**Target invariant for each of these, once fixed:** the moment an external reader observes the
+new status via `GET /runs/{run_id}`, the event describing that transition must already be
+present in `GET /runs/{run_id}/events` -- the status write and its event must commit together,
+the same way `finalize_completed_run`, `finalize_cancelled_run`, and
+`request_cancel_atomically` already do.
+
+Today these four are primarily a **visibility window**, not a true compare-and-set race: for
+each of these specific transitions, only one worker thread ever touches a given `run_id` at a
+time, so there is no second writer genuinely competing for the same transition the way
+completion and cancellation can compete for the same RUNNING row. A reader can only observe a
+status briefly ahead of its event, not two conflicting terminal outcomes.
+
+That does not mean a future fix should skip the compare-and-set discipline established for
+completion and cancellation. Each of these four should still gate its UPDATE on an explicit
+source-status condition -- e.g. `WHERE run_id = ? AND status = 'queued'` for QUEUED ->
+RUNNING, `WHERE run_id = ? AND status = 'running'` for RUNNING -> FAILED and the
+restart-recovery RUNNING -> QUEUED transition -- rather than an unconditional full-row
+`UPDATE ... WHERE run_id = ?`. Even without a competing writer today, an explicit source-status
+condition keeps the invariant machine-checkable and guards against a future caller (a second
+worker pool, a retried recovery pass) re-running the transition and duplicating its event.
+
 ## Tool sandbox
 
 The process backend executes only tools registered by the server. Clients cannot submit Python source, shell commands, executable paths, or module names.

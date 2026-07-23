@@ -3,7 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict
 
-from .state import AgentState, StatePatch, TraceEvent
+from .contracts import TraceEvent
+from .state import AgentState, StatePatch
 
 
 def _merge_dict(original: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:

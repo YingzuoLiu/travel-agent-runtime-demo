@@ -3,19 +3,23 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Tuple
 
-from pydantic import BaseModel
-
+from .contracts import RuntimeResponse
 from .reducer import apply_patch, append_trace
 from .review.models import ReplanAction, ReplanDirective, WorkflowReviewResult
 from .review.orchestrator import WorkflowOrchestrator
 from .state import AgentState, StatePatch, TravelPlan
 from .validator import TravelValidator
 
-
-class RuntimeResponse(BaseModel):
-    message: str
-    state: AgentState
-    validation_errors: List[str]
+# `RuntimeResponse` here is the Core contract from `agent/contracts.py`,
+# generic in its state type. Every use below parametrizes it explicitly as
+# `RuntimeResponse[AgentState]` rather than binding it to a module-level
+# alias: binding the type parameter at each use site (instead of
+# annotating a field with the abstract `BaseRuntimeState`, or shadowing
+# the Core name with a Travel-bound alias of the same name) is what keeps
+# `state`'s static type, JSON schema, and `model_dump()`/`model_dump_json()`
+# output all showing every `AgentState` field, while leaving
+# `agent.runtime.RuntimeResponse` identical to the unbound Core contract --
+# see `agent/contracts.py` and `tests/test_contracts.py`.
 
 
 class TravelAgentRuntime:
@@ -41,7 +45,7 @@ class TravelAgentRuntime:
         if self.enable_review_workflow and self.review_orchestrator is None:
             self.review_orchestrator = WorkflowOrchestrator()
 
-    def handle_user_message(self, state: AgentState, user_message: str) -> RuntimeResponse:
+    def handle_user_message(self, state: AgentState, user_message: str) -> RuntimeResponse[AgentState]:
         intent, patch = self.detect_intent_and_patch(state, user_message)
 
         state = append_trace(
@@ -72,7 +76,7 @@ class TravelAgentRuntime:
             state = self.handle_validation_failure(state, validation.errors)
 
         response = self.render_response(state, validation.errors)
-        return RuntimeResponse(
+        return RuntimeResponse[AgentState](
             message=response,
             state=state,
             validation_errors=validation.errors,

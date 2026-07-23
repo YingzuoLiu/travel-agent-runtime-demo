@@ -9,7 +9,9 @@ This demonstrates the core RL loop:
   observe state → sample action → get reward → update policy
 """
 from __future__ import annotations
-import sys, json, random
+import sys
+import json
+import random
 from pathlib import Path
 from collections import defaultdict
 
@@ -18,26 +20,29 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent import AgentState
-from rl.reward import reward_for_intent, INTENT_LABELS
-from rl.episodes import LABELLED_SCENARIOS, build_prompt
+from agent import AgentState  # noqa: E402
+from rl.reward import reward_for_intent, INTENT_LABELS  # noqa: E402
+from rl.episodes import LABELLED_SCENARIOS, build_prompt  # noqa: E402
 
 N_LABELS  = len(INTENT_LABELS)
 LR        = 0.1
 EPOCHS    = 20
 SEED      = 42
-random.seed(SEED); np.random.seed(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
 
 # ── Policy: one softmax distribution per unique prompt ─────────────────────
 logits: dict[str, np.ndarray] = defaultdict(lambda: np.zeros(N_LABELS))
 
 def sample_action(prompt: str) -> tuple[str, int]:
-    probs = np.exp(logits[prompt]); probs /= probs.sum()
+    probs = np.exp(logits[prompt])
+    probs /= probs.sum()
     idx   = np.random.choice(N_LABELS, p=probs)
     return INTENT_LABELS[idx], idx
 
 def update(prompt: str, idx: int, reward: float):
-    probs = np.exp(logits[prompt]); probs /= probs.sum()
+    probs = np.exp(logits[prompt])
+    probs /= probs.sum()
     grad  = -reward * (1 - probs[idx])          # REINFORCE gradient
     logits[prompt][idx] += LR * grad
 
