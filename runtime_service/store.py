@@ -135,27 +135,55 @@ class SQLiteRunStore:
                 raise KeyError(f"Run not found: {run.run_id}")
         return run
 
-    def request_cancel(self, run_id: str) -> RunRecord:
+    def request_cancel_atomically(self, run_id: str) -> RunRecord:
+        """Atomically flip `cancel_requested` 0 -> 1 for a QUEUED/RUNNING run.
+
+        The eligibility check and the flag flip are the same statement: a
+        single conditional UPDATE using an explicit allowlist --
+        `status IN ('queued', 'running')` -- acts as the compare-and-set.
+        This is deliberately not "status NOT IN (completed, failed,
+        cancelled)": a future non-terminal status (e.g. AWAITING_APPROVAL)
+        must be added to this allowlist explicitly before it becomes
+        cancellable here, instead of silently inheriting cancellability
+        just because it happens not to be one of today's three terminal
+        values.
+
+        Only when the UPDATE actually flips the flag (rowcount == 1) does
+        this append a `run.cancel_requested` event, in the same
+        connection/transaction as the UPDATE. Two distinct situations both
+        leave `rowcount == 0` and are deliberately *not* told apart here,
+        because neither should write a new event or change anything:
+        - the run is already terminal (COMPLETED/FAILED/CANCELLED) -- the
+          caller can see this from the returned run's `status`;
+        - the run is still QUEUED/RUNNING but `cancel_requested` is already
+          1 (a duplicate cancel request) -- same returned run either way.
+        """
         with self._lock, self._connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE runs
                 SET cancel_requested = 1, updated_at = ?
-                WHERE run_id = ? AND status NOT IN (?, ?, ?)
+                WHERE run_id = ? AND status IN (?, ?) AND cancel_requested = 0
                 """,
                 (
                     utc_now(),
                     run_id,
-                    RunStatus.COMPLETED.value,
-                    RunStatus.FAILED.value,
-                    RunStatus.CANCELLED.value,
+                    RunStatus.QUEUED.value,
+                    RunStatus.RUNNING.value,
                 ),
             )
             row = connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
             ).fetchone()
-        if row is None:
-            raise KeyError(f"Run not found: {run_id}")
+            if row is None:
+                raise KeyError(f"Run not found: {run_id}")
+            if cursor.rowcount == 1:
+                self._append_event_with_connection(
+                    connection,
+                    run_id,
+                    "run.cancel_requested",
+                    {"status": row["status"]},
+                )
         return self._row_to_run(row)
 
     def finalize_completed_run(self, run: RunRecord) -> bool:
@@ -166,8 +194,8 @@ class SQLiteRunStore:
         status = 'running' AND cancel_requested = 0` acts as a compare-and-set.
         There is no separate read-then-decide step, so a concurrent cancel
         (which only ever sets `cancel_requested = 1` on non-terminal rows,
-        see `request_cancel`) and a concurrent/duplicate finalize attempt
-        cannot both believe they won.
+        see `request_cancel_atomically`) and a concurrent/duplicate finalize
+        attempt cannot both believe they won.
 
         If the UPDATE does not affect exactly one row -- the run was already
         finalized, or a cancel committed first, or it is not currently
@@ -237,6 +265,98 @@ class SQLiteRunStore:
             )
 
         run.status = RunStatus.COMPLETED
+        run.completed_at = completed_at
+        run.updated_at = completed_at
+        return True
+
+    def finalize_cancelled_run(self, run: RunRecord, *, reason: str) -> bool:
+        """Atomically transition a cancel-requested QUEUED/RUNNING run to CANCELLED.
+
+        Replaces the two separate commits `_mark_cancelled` used to issue
+        (`update_run` then `append_event`) with a single compare-and-set,
+        the same shape as `finalize_completed_run`. The eligibility check --
+        `status IN ('queued', 'running') AND cancel_requested = 1` -- and
+        the CANCELLED transition happen in the same UPDATE:
+
+        - `status IN ('queued', 'running')` covers both call shapes this
+          replaces: a run cancelled before it ever started running (still
+          QUEUED) and a run cancelled at or after the execution boundary
+          (still RUNNING, since only a successful `finalize_completed_run`
+          ever moves a RUNNING row away from RUNNING).
+        - `cancel_requested = 1` asserts the precondition every call site
+          already relies on (each only calls this once it has confirmed
+          `cancel_requested` is set); it also means a bare duplicate call
+          before this method has flipped `status` away from QUEUED/RUNNING
+          would still be caught if `cancel_requested` were ever 0 here,
+          though that combination should not occur given the call sites.
+
+        Every column other than `status`/`cancel_requested`/`completed_at`/
+        `updated_at` is written exactly as it currently stands on `run`, so
+        each existing call site's semantics survive unchanged: a
+        before-start cancellation leaves the original request/thread-store
+        state alone (the caller never overwrote `run.state`), while an
+        after-execution-boundary cancellation carries over the
+        just-computed result state (the caller set `run.state` to it before
+        calling this) -- `output_message`/`validation_errors`/`error`/
+        `attempt` follow whatever the caller set on `run`, matching
+        `_mark_cancelled`'s previous full-row `update_run` semantics.
+
+        If the UPDATE does not affect exactly one row -- already cancelled,
+        already completed/failed by a concurrent finalize, or (defensively)
+        not actually cancel-requested -- nothing else in this method runs:
+        no `run.cancelled` event, no duplicate write, and `run` itself is
+        left unmodified. Calling this a second time for the same run is a
+        no-op for the same reason `finalize_completed_run` is.
+        """
+        completed_at = utc_now()
+        state_json = run.state.model_dump_json() if run.state is not None else None
+        validation_errors_json = json.dumps(run.validation_errors)
+
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE runs SET
+                    thread_id = ?, agent_id = ?, agent_version = ?, status = ?,
+                    input_message = ?, state_json = ?, output_message = ?,
+                    validation_errors_json = ?, error = ?, attempt = ?,
+                    cancel_requested = ?, client_request_id = ?, created_at = ?,
+                    updated_at = ?, started_at = ?, completed_at = ?
+                WHERE run_id = ? AND status IN (?, ?) AND cancel_requested = 1
+                """,
+                (
+                    run.thread_id,
+                    run.agent_id,
+                    run.agent_version,
+                    RunStatus.CANCELLED.value,
+                    run.input_message,
+                    state_json,
+                    run.output_message,
+                    validation_errors_json,
+                    run.error,
+                    run.attempt,
+                    1,
+                    run.client_request_id,
+                    run.created_at,
+                    completed_at,
+                    run.started_at,
+                    completed_at,
+                    run.run_id,
+                    RunStatus.QUEUED.value,
+                    RunStatus.RUNNING.value,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return False
+
+            self._append_event_with_connection(
+                connection,
+                run.run_id,
+                "run.cancelled",
+                {"reason": reason},
+            )
+
+        run.status = RunStatus.CANCELLED
+        run.cancel_requested = True
         run.completed_at = completed_at
         run.updated_at = completed_at
         return True

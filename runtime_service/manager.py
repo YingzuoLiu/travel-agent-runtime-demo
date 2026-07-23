@@ -101,12 +101,16 @@ class RuntimeManager:
         return self.store.get_run(run_id)
 
     def request_cancel(self, run_id: str) -> RunRecord:
-        previous = self._require_run(run_id)
-        if previous.status.is_terminal:
-            return previous
-        run = self.store.request_cancel(run_id)
-        self.store.append_event(run_id, "run.cancel_requested", {"status": run.status.value})
-        return run
+        """Request cancellation of a run.
+
+        Delegates entirely to the store's atomic compare-and-set: an
+        already-terminal run is returned unchanged (no exception, no new
+        event -- the store's CAS simply does not match it), a run not
+        found raises KeyError (-> 404 at the API layer), and a genuine
+        QUEUED/RUNNING -> cancel-requested transition is what actually
+        appends a `run.cancel_requested` event.
+        """
+        return self.store.request_cancel_atomically(run_id)
 
     def _worker_loop(self) -> None:
         while True:
@@ -159,12 +163,8 @@ class RuntimeManager:
             self.store.update_run(run)
             self.store.append_event(run.run_id, "run.failed", {"error": run.error, "traceback": traceback.format_exc(limit=5)})
 
-    def _mark_cancelled(self, run: RunRecord, *, reason: str) -> None:
-        run.status = RunStatus.CANCELLED
-        run.cancel_requested = True
-        run.completed_at = utc_now()
-        self.store.update_run(run)
-        self.store.append_event(run.run_id, "run.cancelled", {"reason": reason})
+    def _mark_cancelled(self, run: RunRecord, *, reason: str) -> bool:
+        return self.store.finalize_cancelled_run(run, reason=reason)
 
     def _require_run(self, run_id: str) -> RunRecord:
         run = self.store.get_run(run_id)

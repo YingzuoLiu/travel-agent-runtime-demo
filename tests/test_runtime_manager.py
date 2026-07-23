@@ -81,6 +81,12 @@ def test_cancelled_before_start(tmp_path):
         events = [event.event_type for event in store.list_events(submitted.run_id)]
         assert "run.cancel_requested" in events
         assert "run.cancelled" in events
+        # A QUEUED -> CANCELLED transition never actually started the run:
+        # no run.started, and therefore no checkpoint/completion events either.
+        assert "run.started" not in events
+        assert "checkpoint.saved" not in events
+        assert "run.completed" not in events
+        assert events.index("run.cancel_requested") < events.index("run.cancelled")
     finally:
         manager.stop()
 
@@ -107,6 +113,12 @@ def test_cancelled_after_execution_boundary(tmp_path):
         event_types = [event.event_type for event in store.list_events(submitted.run_id)]
         assert "checkpoint.saved" not in event_types
         assert "run.completed" not in event_types
+        assert event_types.index("run.cancel_requested") < event_types.index("run.cancelled")
+        # after-execution-boundary cancellation still carries over the
+        # just-computed result state onto the run record itself (only the
+        # thread_states checkpoint used by the *next* run is withheld).
+        assert result.state is not None
+        assert result.state.destination == "Tokyo"
     finally:
         release.set()
         manager.stop()
@@ -191,7 +203,7 @@ def test_finalize_completed_run_rejects_when_cancel_requested_first(tmp_path):
 
     # Simulate a cancel committing to the database first, in the window
     # between a worker starting execution and it finishing.
-    cancelled = store.request_cancel(run.run_id)
+    cancelled = store.request_cancel_atomically(run.run_id)
     assert cancelled.cancel_requested is True
     assert cancelled.status == RunStatus.RUNNING
 
@@ -212,6 +224,187 @@ def test_finalize_completed_run_rejects_when_cancel_requested_first(tmp_path):
     events = [event.event_type for event in store.list_events(run.run_id)]
     assert "checkpoint.saved" not in events
     assert "run.completed" not in events
+
+
+def test_request_cancel_atomically_is_idempotent_on_duplicate_call(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_dup_cancel_request",
+        thread_id="dup-cancel-request-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.QUEUED,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+    )
+    store.create_run(run)
+
+    first = store.request_cancel_atomically(run.run_id)
+    assert first.cancel_requested is True
+
+    second = store.request_cancel_atomically(run.run_id)
+
+    assert second.cancel_requested is True
+    events = [event.event_type for event in store.list_events(run.run_id)]
+    assert events.count("run.cancel_requested") == 1
+
+
+def test_finalize_cancelled_run_is_idempotent_on_duplicate_call(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_dup_cancel_finalize",
+        thread_id="dup-cancel-finalize-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.RUNNING,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+        cancel_requested=True,
+    )
+    store.create_run(run)
+
+    first = store.finalize_cancelled_run(run, reason="cancelled_after_execution_boundary")
+    assert first is True
+    assert run.status == RunStatus.CANCELLED
+
+    events_after_first = store.list_events(run.run_id)
+    event_types_after_first = [event.event_type for event in events_after_first]
+    assert event_types_after_first.count("run.cancelled") == 1
+
+    second = store.finalize_cancelled_run(run, reason="cancelled_after_execution_boundary")
+
+    assert second is False
+    # Same guarantee as finalize_completed_run: a duplicate call must not
+    # write any new event because the conditional UPDATE affects zero rows
+    # once status is no longer QUEUED/RUNNING.
+    events_after_second = store.list_events(run.run_id)
+    assert events_after_second == events_after_first
+
+    persisted = store.get_run(run.run_id)
+    assert persisted is not None
+    assert persisted.status == RunStatus.CANCELLED
+
+
+def test_cancellation_event_order_is_cancel_requested_before_cancelled(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_cancel_order",
+        thread_id="cancel-order-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.RUNNING,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+    )
+    store.create_run(run)
+
+    store.request_cancel_atomically(run.run_id)
+    store.finalize_cancelled_run(run, reason="cancelled_after_execution_boundary")
+
+    events = [event.event_type for event in store.list_events(run.run_id)]
+    assert events.index("run.cancel_requested") < events.index("run.cancelled")
+
+
+def test_completion_and_cancellation_are_mutually_exclusive_when_cancel_wins(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_race_cancel_wins",
+        thread_id="race-cancel-wins-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.RUNNING,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+    )
+    store.create_run(run)
+
+    # Cancel commits first, exactly like the real cancelled_after_execution_
+    # boundary path: cancel_requested flips to 1 while the run is still
+    # RUNNING and the runtime step is still in flight.
+    store.request_cancel_atomically(run.run_id)
+
+    run.state = AgentState(thread_id="race-cancel-wins-thread", destination="Tokyo", days=5, budget=9000)
+    run.output_message = "Planned."
+    run.validation_errors = []
+
+    completed = store.finalize_completed_run(run)
+    assert completed is False
+
+    cancelled = store.finalize_cancelled_run(run, reason="cancelled_after_execution_boundary")
+    assert cancelled is True
+
+    persisted = store.get_run(run.run_id)
+    assert persisted is not None
+    assert persisted.status == RunStatus.CANCELLED
+
+    events = [event.event_type for event in store.list_events(run.run_id)]
+    # Exactly one terminal event set must exist: cancellation's, not completion's.
+    assert events.count("run.cancelled") == 1
+    assert "run.completed" not in events
+    assert "checkpoint.saved" not in events
+    assert events.index("run.cancel_requested") < events.index("run.cancelled")
+
+
+def test_completion_and_cancellation_are_mutually_exclusive_when_completion_wins(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    run = RunRecord(
+        run_id="run_race_completion_wins",
+        thread_id="race-completion-wins-thread",
+        agent_id="travel-agent",
+        agent_version="0.3.0",
+        status=RunStatus.RUNNING,
+        input_message="I want a 5-day Tokyo trip under 9000 SGD.",
+    )
+    store.create_run(run)
+
+    run.state = AgentState(thread_id="race-completion-wins-thread", destination="Tokyo", days=5, budget=9000)
+    run.output_message = "Planned."
+    run.validation_errors = []
+
+    completed = store.finalize_completed_run(run)
+    assert completed is True
+
+    # A cancel arriving after completion must not be able to flip anything:
+    # the row is no longer QUEUED/RUNNING, so the CAS simply does not match.
+    cancel_request_result = store.request_cancel_atomically(run.run_id)
+    assert cancel_request_result.cancel_requested is False
+    assert cancel_request_result.status == RunStatus.COMPLETED
+
+    finalize_cancel_result = store.finalize_cancelled_run(run, reason="cancelled_after_execution_boundary")
+    assert finalize_cancel_result is False
+
+    persisted = store.get_run(run.run_id)
+    assert persisted is not None
+    assert persisted.status == RunStatus.COMPLETED
+
+    events = [event.event_type for event in store.list_events(run.run_id)]
+    # Exactly one terminal event set must exist: completion's, not cancellation's.
+    assert events.count("run.completed") == 1
+    assert "run.cancel_requested" not in events
+    assert "run.cancelled" not in events
+
+
+def test_request_cancel_on_already_terminal_run_is_a_no_op(tmp_path):
+    store = SQLiteRunStore(tmp_path / "runtime.db")
+    manager = RuntimeManager(store, build_default_registry())
+    manager.start()
+    try:
+        submitted = manager.submit(
+            RunCreateRequest(thread_id="cancel-terminal", user_message="I want a 5-day Tokyo trip under 9000 SGD.")
+        )
+        completed = wait_for_terminal(manager, submitted.run_id)
+        assert completed.status == RunStatus.COMPLETED
+
+        events_before = store.list_events(submitted.run_id)
+
+        # This documents the existing, preserved convention: cancelling an
+        # already-terminal run is not an error and not a duplicate-cancel
+        # code path either -- it is simply a no-op that returns the run
+        # exactly as it already was.
+        result = manager.request_cancel(submitted.run_id)
+
+        assert result.status == RunStatus.COMPLETED
+        assert result.cancel_requested is False
+        events_after = store.list_events(submitted.run_id)
+        assert events_after == events_before
+    finally:
+        manager.stop()
 
 
 def test_two_workers_complete_independent_runs(tmp_path):
